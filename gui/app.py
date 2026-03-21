@@ -15,7 +15,7 @@ class App(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.title("LF-Creator - Lenguajes Formales")
+        self.title("AutomataLab - Lenguajes Formales")
         self.geometry("1200x750")
         self.minsize(900, 600)
 
@@ -26,7 +26,7 @@ class App(tk.Tk):
         title_frame = ttk.Frame(self)
         title_frame.pack(fill=tk.X, padx=10, pady=(8, 0))
 
-        ttk.Label(title_frame, text="LF-Creator",
+        ttk.Label(title_frame, text="AutomataLab",
                    font=('Segoe UI', 16, 'bold')).pack(side=tk.LEFT)
         ttk.Label(title_frame,
                    text="Generador y verificador de lenguajes formales",

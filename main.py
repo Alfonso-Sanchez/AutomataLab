@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LF-Creator: Generador y verificador de lenguajes formales."""
+"""AutomataLab: Generador y verificador de lenguajes formales."""
 
 import sys
 import os

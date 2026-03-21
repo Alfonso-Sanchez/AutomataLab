@@ -1,0 +1,155 @@
+# AutomataLab
+
+An interactive desktop application for creating, visualizing, and testing formal language constructs. Built as a study tool for formal language theory courses.
+
+![Python](https://img.shields.io/badge/Python-3.8+-blue)
+![Tkinter](https://img.shields.io/badge/GUI-Tkinter-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+## Features
+
+### Supported Formal Language Types
+
+| Type | Interactive Canvas | Step-by-Step Simulation | Import/Export |
+|------|:-:|:-:|:-:|
+| **DFA** (Deterministic Finite Automaton) | Yes | Yes | Yes |
+| **NFA** (Non-deterministic Finite Automaton) | Yes | Yes | Yes |
+| **PDA** (Pushdown Automaton) | Yes | Yes | Yes |
+| **Regular Expressions** (Formal) | NFA via Thompson's | Trace | - |
+| **CFG** (Context-Free Grammar) | Parse Tree | Derivation | - |
+
+### Interactive Visual Editor
+- Drag-and-drop state placement
+- Toolbar modes: add states, transitions, set initial/accept states, delete
+- Real-time diagram rendering with labeled transitions
+- Hover and selection highlighting
+
+### Testing & Simulation
+- Instant string acceptance/rejection testing
+- Step-by-step simulation with state highlighting
+- NFA: epsilon closure computation and multi-path traces
+- PDA: full stack trace visualization
+- CFG: leftmost derivation display and parse tree rendering
+
+### Regular Expressions (Formal)
+- Formal RE operators: `a`, `ε`, `∅`, `R₁∪R₂`, `R₁R₂`, `R*`, `R⁺`, `Σ`
+- Thompson's construction (RE to NFA conversion)
+- NFA visualization of compiled expression
+- Symbol insertion buttons for special characters
+- 8 built-in syllabus examples with batch testing
+
+### Context-Free Grammars
+- Production rule editor with auto-detection of variables and terminals
+- Parse tree visualization on scrollable canvas
+- String generation from grammar rules
+- Ambiguity checking (multiple leftmost derivations)
+- Formal definition display: `G = (V, Σ, R, S)`
+
+## Installation
+
+### Prerequisites
+- Python 3.8+
+
+### Setup
+```bash
+git clone https://github.com/yourusername/LF-Creator.git
+cd LF-Creator
+pip install -r requirements.txt
+```
+
+### Run
+```bash
+python main.py
+```
+
+### Build Executable (.exe)
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed --name "AutomataLab" main.py
+```
+The executable will be in `dist/AutomataLab.exe`.
+
+## Usage
+
+### DFA / NFA / PDA (Interactive Canvas)
+
+1. Use the **toolbar** to select a mode (Add State, Transition, Initial, Accept, Delete)
+2. **Click on the canvas** to add states
+3. **Click two states** in Transition mode to add a transition (a dialog will ask for the symbol)
+4. **Drag states** in Select mode to reposition them
+5. Enter a string in the test field and press **Probar** (Test) or **Paso a paso** (Step-by-step)
+6. Use **Import/Export** to load or save text-based definitions
+
+#### Text Definition Format (DFA example)
+```
+States: q0, q1, q2
+Alphabet: 0, 1
+Initial: q0
+Accept: q0
+Transitions:
+q0, 0 -> q0
+q0, 1 -> q1
+q1, 0 -> q2
+q1, 1 -> q0
+q2, 0 -> q1
+q2, 1 -> q2
+```
+
+### Regular Expressions
+
+1. Type a formal regular expression (e.g., `(a∪b)*abb`)
+2. Set the alphabet (e.g., `a, b`)
+3. Press **Construir** to build the NFA via Thompson's construction
+4. Test individual strings or use batch testing
+
+### Context-Free Grammars
+
+1. Write production rules (e.g., `S -> aSb | ε`)
+2. Press **Construir** to parse the grammar
+3. Test strings to see leftmost derivations and parse trees
+4. Use **Generar** to enumerate strings in the language
+5. Use **Verificar Ambiguedad** to check if a string has multiple derivations
+
+## Project Structure
+
+```
+LF-Creator/
+├── main.py                  # Entry point
+├── requirements.txt         # Dependencies
+├── core/
+│   ├── dfa.py               # DFA model & parser
+│   ├── nfa.py               # NFA model with epsilon closure
+│   ├── pda.py               # PDA model with stack simulation
+│   ├── cfg.py               # CFG model with derivation & parse trees
+│   └── regex_formal.py      # Formal RE parser & Thompson's construction
+└── gui/
+    ├── app.py               # Main window with tabbed interface
+    ├── base_tab.py          # Base class for editor tabs
+    ├── canvas_renderer.py   # Interactive automata canvas widget
+    ├── dfa_tab.py           # DFA interactive editor
+    ├── nfa_tab.py           # NFA interactive editor
+    ├── pda_tab.py           # PDA interactive editor
+    ├── regex_tab.py         # Formal RE editor
+    └── cfg_tab.py           # CFG editor with parse tree view
+```
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+B` / `F5` | Build current automaton |
+| `Ctrl+T` | Test current string |
+| `Enter` | Submit test string |
+
+## Dependencies
+
+- **Pillow** - Image handling
+- **graphviz** - Graph visualization (optional)
+
+## License
+
+MIT
+
+---
+
+Created by **Alfonso** and **Claude**.
