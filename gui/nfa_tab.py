@@ -1,0 +1,393 @@
+"""NFA interactive editor tab."""
+
+import tkinter as tk
+from tkinter import ttk, scrolledtext, simpledialog, messagebox
+
+from gui.canvas_renderer import AutomataCanvas
+from core.nfa import NFA
+
+
+class NFATab(ttk.Frame):
+    """Interactive NFA builder and tester tab."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.nfa = None
+        self._step_index = 0
+        self._step_trace = []
+        self._step_string = ""
+        self._build_ui()
+
+    # ──────────────────────────────────────────────
+    # UI Construction
+    # ──────────────────────────────────────────────
+
+    def _build_ui(self):
+        self.paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        self.paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # --- Left panel: Interactive canvas ---
+        left_frame = ttk.Frame(self.paned)
+        self.paned.add(left_frame, weight=3)
+
+        self.canvas = AutomataCanvas(left_frame, width=500, height=400)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas.set_transition_dialog(self._transition_dialog)
+        self.canvas.set_on_change(self._on_canvas_change)
+
+        # Extra buttons row
+        extra_bar = ttk.Frame(left_frame)
+        extra_bar.pack(fill=tk.X, pady=(2, 0))
+
+        ttk.Label(extra_bar, text='Ejemplo:').pack(side=tk.LEFT, padx=(0, 2))
+        self._example_var = tk.StringVar(value='Seleccionar...')
+        example_combo = ttk.Combobox(extra_bar, textvariable=self._example_var,
+                                     values=['Termina en "ab"', 'NFA con epsilon'],
+                                     state='readonly', width=18)
+        example_combo.pack(side=tk.LEFT, padx=2)
+        example_combo.bind('<<ComboboxSelected>>', self._on_example_selected)
+
+        ttk.Separator(extra_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
+
+        ttk.Button(extra_bar, text='Importar texto',
+                   command=self._on_import).pack(side=tk.LEFT, padx=2)
+        ttk.Button(extra_bar, text='Exportar texto',
+                   command=self._on_export).pack(side=tk.LEFT, padx=2)
+
+        # --- Right panel: Testing ---
+        right_frame = ttk.Frame(self.paned)
+        self.paned.add(right_frame, weight=2)
+
+        ttk.Label(right_frame, text='Probar Cadenas',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=5, pady=(5, 2))
+
+        input_frame = ttk.Frame(right_frame)
+        input_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        ttk.Label(input_frame, text='Cadena:').pack(side=tk.LEFT)
+        self.test_entry = ttk.Entry(input_frame, font=('Consolas', 11))
+        self.test_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        self.test_entry.bind('<Return>', lambda e: self._on_test())
+
+        ttk.Button(input_frame, text='Probar',
+                   command=self._on_test).pack(side=tk.LEFT, padx=2)
+        ttk.Button(input_frame, text='Paso a paso',
+                   command=self._on_step).pack(side=tk.LEFT, padx=2)
+
+        self.results = scrolledtext.ScrolledText(
+            right_frame, wrap=tk.WORD, font=('Consolas', 10),
+            bg='#1A1A2E', fg='#E0E0E0',
+            insertbackground='white', state='disabled',
+            padx=8, pady=5
+        )
+        self.results.pack(fill=tk.BOTH, expand=True, padx=5, pady=(2, 5))
+
+        self.results.tag_configure('accepted', foreground='#4CAF50',
+                                   font=('Consolas', 10, 'bold'))
+        self.results.tag_configure('rejected', foreground='#F44336',
+                                   font=('Consolas', 10, 'bold'))
+        self.results.tag_configure('error', foreground='#FF9800')
+        self.results.tag_configure('info', foreground='#64B5F6')
+        self.results.tag_configure('step', foreground='#CE93D8')
+
+        self.status_var = tk.StringVar(value='Listo. Agrega estados con la barra de herramientas.')
+        ttk.Label(self, textvariable=self.status_var,
+                  relief=tk.SUNKEN, anchor=tk.W,
+                  font=('Segoe UI', 9)).pack(fill=tk.X, side=tk.BOTTOM)
+
+    # ──────────────────────────────────────────────
+    # Transition dialog (NFA-specific)
+    # ──────────────────────────────────────────────
+
+    def _transition_dialog(self, from_state, to_state):
+        """Prompt for NFA transition symbol, allowing epsilon."""
+        symbol = simpledialog.askstring(
+            'Transicion NFA',
+            f'Simbolo para {from_state} \u2192 {to_state}:\n'
+            '(usa \u03b5 o "eps" para transicion epsilon)',
+            parent=self
+        )
+        if symbol is None:
+            return None
+        symbol = symbol.strip()
+        if not symbol:
+            return None
+        # Normalize epsilon
+        if symbol.lower() in ('eps', 'epsilon', '\u03b5', 'e'):
+            symbol = '\u03b5'
+        return symbol
+
+    # ──────────────────────────────────────────────
+    # Canvas change
+    # ──────────────────────────────────────────────
+
+    def _on_canvas_change(self):
+        n_states = len(self.canvas.states)
+        n_trans = len(self.canvas.transitions)
+        self.status_var.set(f'NFA: {n_states} estados, {n_trans} transiciones')
+        self.nfa = None
+
+    # ──────────────────────────────────────────────
+    # Build NFA from canvas
+    # ──────────────────────────────────────────────
+
+    def _build_nfa_from_canvas(self):
+        nfa = NFA()
+        nfa.states = list(self.canvas.states.keys())
+        for name, data in self.canvas.states.items():
+            if data['is_initial']:
+                nfa.initial_state = name
+            if data['is_accept']:
+                nfa.accept_states.add(name)
+        for t in self.canvas.transitions:
+            key = (t['from'], t['label'])
+            if key not in nfa.transitions:
+                nfa.transitions[key] = set()
+            nfa.transitions[key].add(t['to'])
+            if t['label'] != '\u03b5' and t['label'] not in nfa.alphabet:
+                nfa.alphabet.append(t['label'])
+        return nfa
+
+    def _on_build(self):
+        if not self.canvas.states:
+            self.status_var.set('No hay estados definidos')
+            return
+        nfa = self._build_nfa_from_canvas()
+        if nfa.initial_state is None:
+            self.status_var.set('Error: No hay estado inicial definido')
+            self._clear_results()
+            self._write_result('No hay estado inicial. Usa el modo "Inicial" para asignar uno.\n', 'error')
+            return
+        self.nfa = nfa
+        has_epsilon = any(s == '\u03b5' for (_, s) in nfa.transitions.keys())
+        total_trans = sum(len(v) for v in nfa.transitions.values())
+        self.status_var.set(
+            f'NFA construido: {len(nfa.states)} estados, '
+            f'{total_trans} transiciones'
+            f'{", con \u03b5-transiciones" if has_epsilon else ""}'
+        )
+        self._clear_results()
+        self._write_result('NFA construido exitosamente.\n', 'info')
+        self._write_result(f'  Estados: {", ".join(nfa.states)}\n')
+        self._write_result(f'  Inicial: {nfa.initial_state}\n')
+        self._write_result(f'  Aceptacion: {", ".join(nfa.accept_states)}\n')
+        self._write_result(f'  Alfabeto: {{{", ".join(nfa.alphabet)}}}\n')
+        if has_epsilon:
+            closure = nfa.epsilon_closure({nfa.initial_state})
+            self._write_result(f'  \u03b5-clausura({nfa.initial_state}): {{{", ".join(sorted(closure))}}}\n')
+
+    # ──────────────────────────────────────────────
+    # Examples
+    # ──────────────────────────────────────────────
+
+    def _on_example_selected(self, event=None):
+        choice = self._example_var.get()
+        if 'ab' in choice.lower():
+            text = NFA.example()
+        else:
+            text = NFA.example2()
+        nfa, errors = NFA.parse(text)
+        if nfa and not errors:
+            labels = nfa.get_transition_labels()
+            self.canvas.load_from_model(nfa.states, nfa.initial_state,
+                                        nfa.accept_states, labels)
+            self.nfa = nfa
+            self.status_var.set(f'Ejemplo cargado: {len(nfa.states)} estados')
+            self._clear_results()
+            self._write_result('Ejemplo cargado en el canvas.\n', 'info')
+
+    # ──────────────────────────────────────────────
+    # Import / Export
+    # ──────────────────────────────────────────────
+
+    def _on_import(self):
+        win = tk.Toplevel(self)
+        win.title('Importar NFA desde texto')
+        win.geometry('500x400')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        ttk.Label(win, text='Pega la definicion del NFA:',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        def do_import():
+            text = editor.get('1.0', tk.END)
+            nfa, errors = NFA.parse(text)
+            if errors:
+                messagebox.showerror('Errores de parseo', '\n'.join(errors), parent=win)
+                return
+            labels = nfa.get_transition_labels()
+            self.canvas.load_from_model(nfa.states, nfa.initial_state,
+                                        nfa.accept_states, labels)
+            self.nfa = nfa
+            self.status_var.set(f'NFA importado: {len(nfa.states)} estados')
+            self._clear_results()
+            self._write_result('NFA importado exitosamente desde texto.\n', 'info')
+            win.destroy()
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+    def _on_export(self):
+        if not self.canvas.states:
+            messagebox.showinfo('Exportar', 'No hay automata para exportar.', parent=self)
+            return
+
+        nfa = self._build_nfa_from_canvas()
+        lines = []
+        lines.append(f'States: {", ".join(nfa.states)}')
+        lines.append(f'Alphabet: {", ".join(nfa.alphabet)}')
+        lines.append(f'Initial: {nfa.initial_state or ""}')
+        lines.append(f'Accept: {", ".join(sorted(nfa.accept_states))}')
+        lines.append('Transitions:')
+        for (from_s, symbol), to_states in sorted(nfa.transitions.items()):
+            lines.append(f'{from_s}, {symbol} -> {", ".join(sorted(to_states))}')
+        text = '\n'.join(lines)
+
+        win = tk.Toplevel(self)
+        win.title('Exportar NFA como texto')
+        win.geometry('500x350')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        ttk.Label(win, text='Definicion del NFA:',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        def copy_all():
+            win.clipboard_clear()
+            win.clipboard_append(text)
+            self.status_var.set('Definicion copiada al portapapeles')
+
+        ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+    # ──────────────────────────────────────────────
+    # Testing
+    # ──────────────────────────────────────────────
+
+    def _on_test(self):
+        if self.nfa is None:
+            if not self.canvas.states:
+                self.status_var.set('No hay automata definido')
+                return
+            self.nfa = self._build_nfa_from_canvas()
+
+        if self.nfa.initial_state is None:
+            self.status_var.set('No hay estado inicial definido')
+            self._clear_results()
+            self._write_result('Error: No hay estado inicial definido.\n', 'error')
+            return
+
+        input_str = self.test_entry.get()
+        self._clear_results()
+        accepted, trace, msg = self.nfa.test(input_str)
+
+        display_str = input_str if input_str else '\u03b5 (cadena vacia)'
+        self._write_result(f'Probando: "{display_str}"\n\n', 'info')
+
+        if trace:
+            self._write_result('Traza de conjuntos de estados:\n', 'step')
+            for i, (states, symbol) in enumerate(trace):
+                states_str = '{' + ', '.join(sorted(states)) + '}'
+                if i == 0:
+                    self._write_result(f'  Inicio (\u03b5-clausura): {states_str}\n')
+                else:
+                    self._write_result(f'  Lee \'{symbol}\': {states_str}\n')
+            self._write_result('\n')
+
+        tag = 'accepted' if accepted else 'rejected'
+        self._write_result(f'Resultado: {msg}\n', tag)
+
+        if trace:
+            final_states = set(trace[-1][0])
+            hl_type = 'accept' if accepted else 'reject'
+            self.canvas.highlight_states(final_states, hl_type)
+
+    def _on_step(self):
+        """Step-by-step NFA simulation showing sets of states."""
+        if self.nfa is None:
+            if not self.canvas.states:
+                self.status_var.set('No hay automata definido')
+                return
+            self.nfa = self._build_nfa_from_canvas()
+
+        if self.nfa.initial_state is None:
+            self.status_var.set('No hay estado inicial definido')
+            return
+
+        input_str = self.test_entry.get()
+
+        if self._step_string != input_str or self._step_index >= len(input_str) + 1:
+            self._step_string = input_str
+            self._step_index = 0
+            _, trace, _ = self.nfa.test(input_str)
+            self._step_trace = trace
+            self._clear_results()
+            display_str = input_str if input_str else '\u03b5'
+            self._write_result(f'Simulacion paso a paso: "{display_str}"\n', 'info')
+            self._write_result(f'{"=" * 40}\n\n')
+
+        if self._step_index < len(self._step_trace):
+            states, symbol = self._step_trace[self._step_index]
+            states_str = '{' + ', '.join(sorted(states)) + '}'
+
+            if self._step_index == 0:
+                self._write_result(f'Paso 0: \u03b5-clausura inicial = {states_str}\n', 'step')
+                self._write_result(f'  Cadena restante: "{input_str}"\n\n')
+            else:
+                remaining = input_str[self._step_index:]
+                self._write_result(
+                    f'Paso {self._step_index}: Lee \'{symbol}\' -> {states_str}\n', 'step')
+                self._write_result(f'  Cadena restante: "{remaining}"\n\n')
+
+            hl_type = 'normal'
+            if self._step_index == len(self._step_trace) - 1:
+                accepted = bool(set(states) & self.nfa.accept_states)
+                hl_type = 'accept' if accepted else 'reject'
+            self.canvas.highlight_states(set(states), hl_type)
+
+            self._step_index += 1
+
+            if self._step_index >= len(self._step_trace):
+                final_states = set(self._step_trace[-1][0])
+                accepted = bool(final_states & self.nfa.accept_states)
+                tag = 'accepted' if accepted else 'rejected'
+                msg = 'ACEPTADA' if accepted else 'RECHAZADA'
+                self._write_result(f'\nResultado final: {msg}\n', tag)
+        else:
+            self._step_string = ''
+            self._on_step()
+
+    # ──────────────────────────────────────────────
+    # Result helpers
+    # ──────────────────────────────────────────────
+
+    def _write_result(self, text, tag=None):
+        self.results.config(state='normal')
+        if tag:
+            self.results.insert(tk.END, text, tag)
+        else:
+            self.results.insert(tk.END, text)
+        self.results.see(tk.END)
+        self.results.config(state='disabled')
+
+    def _clear_results(self):
+        self.results.config(state='normal')
+        self.results.delete('1.0', tk.END)
+        self.results.config(state='disabled')
