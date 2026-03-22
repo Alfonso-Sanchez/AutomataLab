@@ -26,7 +26,7 @@ class PDATransitionDialog(tk.Toplevel):
                   font=('Segoe UI', 10, 'bold')).grid(row=0, column=0, columnspan=3,
                                                        sticky=tk.W, pady=(0, 10))
 
-        ttk.Label(main, text='Simbolo de entrada:').grid(
+        ttk.Label(main, text='Entrada (lee de cadena):').grid(
             row=1, column=0, sticky=tk.W, pady=2)
         self.input_var = ttk.Entry(main, font=('Consolas', 11), width=15)
         self.input_var.grid(row=1, column=1, sticky=tk.W, padx=(5, 0), pady=2)
@@ -34,23 +34,23 @@ class PDATransitionDialog(tk.Toplevel):
                    command=lambda: self._insert_epsilon(self.input_var)
                    ).grid(row=1, column=2, padx=(3, 0), pady=2)
 
-        ttk.Label(main, text='Tope de pila:').grid(
+        ttk.Label(main, text='Pop (\u03b5 = no sacar):').grid(
             row=2, column=0, sticky=tk.W, pady=2)
-        self.stack_top_var = ttk.Entry(main, font=('Consolas', 11), width=15)
-        self.stack_top_var.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+        self.pop_var = ttk.Entry(main, font=('Consolas', 11), width=15)
+        self.pop_var.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=2)
         ttk.Button(main, text='\u03b5', width=2,
-                   command=lambda: self._insert_epsilon(self.stack_top_var)
+                   command=lambda: self._insert_epsilon(self.pop_var)
                    ).grid(row=2, column=2, padx=(3, 0), pady=2)
 
-        ttk.Label(main, text='Push en pila:').grid(
+        ttk.Label(main, text='Push (\u03b5 = no meter):').grid(
             row=3, column=0, sticky=tk.W, pady=2)
-        self.stack_push_var = ttk.Entry(main, font=('Consolas', 11), width=15)
-        self.stack_push_var.grid(row=3, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+        self.push_var = ttk.Entry(main, font=('Consolas', 11), width=15)
+        self.push_var.grid(row=3, column=1, sticky=tk.W, padx=(5, 0), pady=2)
         ttk.Button(main, text='\u03b5', width=2,
-                   command=lambda: self._insert_epsilon(self.stack_push_var)
+                   command=lambda: self._insert_epsilon(self.push_var)
                    ).grid(row=3, column=2, padx=(3, 0), pady=2)
 
-        ttk.Label(main, text='Formato resultado: entrada, tope/push',
+        ttk.Label(main, text='Formato: entrada, pop \u2192 push',
                   font=('Segoe UI', 8, 'italic'),
                   foreground='#888888').grid(row=4, column=0, columnspan=3,
                                              sticky=tk.W, pady=(8, 0))
@@ -79,27 +79,19 @@ class PDATransitionDialog(tk.Toplevel):
 
     def _on_ok(self):
         inp = self.input_var.get().strip()
-        top = self.stack_top_var.get().strip()
-        push = self.stack_push_var.get().strip()
+        pop = self.pop_var.get().strip()
+        push = self.push_var.get().strip()
 
-        if not top:
-            messagebox.showwarning('Campo requerido',
-                                   'El tope de pila es requerido.',
-                                   parent=self)
-            return
-
-        # Normalize epsilon
-        if inp.lower() in ('eps', 'epsilon', '', 'e'):
+        # Normalize epsilon / empty
+        if inp.lower() in ('eps', 'epsilon', '', 'e') or not inp:
             inp = '\u03b5'
-        if push.lower() in ('eps', 'epsilon', '', 'e'):
+        if pop.lower() in ('eps', 'epsilon', '', 'e') or not pop:
+            pop = '\u03b5'
+        if push.lower() in ('eps', 'epsilon', '', 'e') or not push:
             push = '\u03b5'
-        if not push:
-            push = '\u03b5'
-        if not inp:
-            inp = '\u03b5'
 
-        # Format: "input, top/push"
-        self.result = f'{inp}, {top}/{push}'
+        # Format: "input, pop → push"
+        self.result = f'{inp}, {pop} \u2192 {push}'
         self.destroy()
 
     def _on_cancel(self):
@@ -233,20 +225,31 @@ class PDATab(ttk.Frame):
     # ──────────────────────────────────────────────
 
     def _parse_pda_label(self, label):
-        """Parse label like 'a, Z/AZ' into (input_sym, stack_top, stack_push)."""
+        """Parse label like 'a, ε → ×' into (input_sym, pop, push)."""
         try:
-            # Format: "input, top/push"
-            parts = label.split(',', 1)
+            # Format: "input, pop → push"
+            if '\u2192' in label:
+                left, push = label.split('\u2192', 1)
+            elif '->' in label:
+                left, push = label.split('->', 1)
+            elif '/' in label:
+                # Legacy format: "input, pop/push"
+                parts = label.split(',', 1)
+                if len(parts) != 2:
+                    return None
+                input_sym = parts[0].strip()
+                rest = parts[1].strip()
+                pop_sym, push_sym = rest.split('/', 1)
+                return (input_sym, pop_sym.strip(), push_sym.strip())
+            else:
+                return None
+            parts = [p.strip() for p in left.split(',')]
             if len(parts) != 2:
                 return None
             input_sym = parts[0].strip()
-            rest = parts[1].strip()
-            if '/' not in rest:
-                return None
-            top_push = rest.split('/', 1)
-            stack_top = top_push[0].strip()
-            stack_push = top_push[1].strip()
-            return (input_sym, stack_top, stack_push)
+            pop_sym = parts[1].strip()
+            push_sym = push.strip()
+            return (input_sym, pop_sym, push_sym)
         except Exception:
             return None
 
@@ -407,9 +410,9 @@ class PDATab(ttk.Frame):
         else:
             lines.append(f'Accept: {", ".join(sorted(pda.accept_states))}')
         lines.append('Transitions:')
-        for (from_s, input_sym, stack_top), targets in sorted(pda.transitions.items()):
-            for to_s, stack_push in targets:
-                lines.append(f'{from_s}, {input_sym}, {stack_top} -> {to_s}, {stack_push}')
+        for (from_s, input_sym, pop_sym), targets in sorted(pda.transitions.items()):
+            for to_s, push_sym in targets:
+                lines.append(f'{from_s}, {input_sym}, {pop_sym} -> {to_s}, {push_sym}')
         text = '\n'.join(lines)
 
         win = tk.Toplevel(self)
