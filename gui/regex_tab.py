@@ -138,12 +138,10 @@ class RegexTab(ttk.Frame):
         )
         self.btn_clear.pack(side=tk.LEFT, padx=2)
 
-        ttk.Separator(example_row, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-
         ttk.Button(example_row, text="Importar",
-                   command=self._on_import).pack(side=tk.LEFT, padx=2)
+                   command=self._on_import).pack(side=tk.RIGHT, padx=2)
         ttk.Button(example_row, text="Exportar",
-                   command=self._on_export).pack(side=tk.LEFT, padx=2)
+                   command=self._on_export).pack(side=tk.RIGHT, padx=2)
 
         # --- Symbol insertion buttons ---
         sym_frame = ttk.Frame(input_section)
@@ -349,12 +347,16 @@ class RegexTab(ttk.Frame):
     def _on_import(self):
         win = tk.Toplevel(self)
         win.title('Importar Regex desde texto')
-        win.geometry('500x300')
+        win.geometry('620x400')
+        win.minsize(500, 300)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Pega la definicion (Regex + Alfabeto):',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
                                            bg='#1E1E1E', fg='#D4D4D4',
@@ -386,8 +388,6 @@ class RegexTab(ttk.Frame):
             self.status_var.set(f'Regex importada: {regex_str}')
             win.destroy()
 
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
 
@@ -403,21 +403,16 @@ class RegexTab(ttk.Frame):
 
         win = tk.Toplevel(self)
         win.title('Exportar Regex como texto')
-        win.geometry('500x250')
+        win.geometry('620x350')
+        win.minsize(500, 250)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Definicion de la Regex:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
 
-        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
-                                           bg='#1E1E1E', fg='#D4D4D4',
-                                           insertbackground='white', padx=8, pady=8)
-        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        editor.insert('1.0', text)
-
         btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         def copy_all():
             win.clipboard_clear()
@@ -426,6 +421,12 @@ class RegexTab(ttk.Frame):
 
         ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
 
     # ------------------------------------------------------------------
     # Example loading

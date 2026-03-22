@@ -38,6 +38,9 @@ class PDATransitionDialog(tk.Toplevel):
             row=2, column=0, sticky=tk.W, pady=2)
         self.stack_top_var = ttk.Entry(main, font=('Consolas', 11), width=15)
         self.stack_top_var.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+        ttk.Button(main, text='\u03b5', width=2,
+                   command=lambda: self._insert_epsilon(self.stack_top_var)
+                   ).grid(row=2, column=2, padx=(3, 0), pady=2)
 
         ttk.Label(main, text='Push en pila:').grid(
             row=3, column=0, sticky=tk.W, pady=2)
@@ -125,43 +128,42 @@ class PDATab(ttk.Frame):
         self.paned.add(left_frame, weight=3)
 
         self.canvas = AutomataCanvas(left_frame, width=500, height=400)
+        self.canvas.automaton_type = 'PDA'
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.set_transition_dialog(self._transition_dialog)
         self.canvas.set_on_change(self._on_canvas_change)
 
-        # Extra buttons row
-        extra_bar = ttk.Frame(left_frame)
-        extra_bar.pack(fill=tk.X, pady=(2, 0))
+        # Row 1: Examples + Import/Export
+        extra_bar1 = ttk.Frame(left_frame)
+        extra_bar1.pack(fill=tk.X, pady=(2, 0))
 
-        ttk.Label(extra_bar, text='Ejemplo:').pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(extra_bar1, text='Ejemplo:').pack(side=tk.LEFT, padx=(0, 2))
         self._example_var = tk.StringVar(value='Seleccionar...')
-        example_combo = ttk.Combobox(extra_bar, textvariable=self._example_var,
+        example_combo = ttk.Combobox(extra_bar1, textvariable=self._example_var,
                                      values=['a^n b^n', 'Palindromos pares'],
                                      state='readonly', width=18)
         example_combo.pack(side=tk.LEFT, padx=2)
         example_combo.bind('<<ComboboxSelected>>', self._on_example_selected)
 
-        ttk.Separator(extra_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
+        ttk.Button(extra_bar1, text='Importar',
+                   command=self._on_import).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(extra_bar1, text='Exportar',
+                   command=self._on_export).pack(side=tk.RIGHT, padx=2)
 
-        ttk.Button(extra_bar, text='Importar texto',
-                   command=self._on_import).pack(side=tk.LEFT, padx=2)
-        ttk.Button(extra_bar, text='Exportar texto',
-                   command=self._on_export).pack(side=tk.LEFT, padx=2)
+        # Row 2: PDA-specific settings
+        extra_bar2 = ttk.Frame(left_frame)
+        extra_bar2.pack(fill=tk.X, pady=(2, 0))
 
-        ttk.Separator(extra_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-
-        # Accept mode selector
-        ttk.Label(extra_bar, text='Aceptar por:').pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(extra_bar2, text='Aceptar por:').pack(side=tk.LEFT, padx=(0, 2))
         self._accept_mode_var = tk.StringVar(value='Estado final')
-        accept_combo = ttk.Combobox(extra_bar, textvariable=self._accept_mode_var,
+        accept_combo = ttk.Combobox(extra_bar2, textvariable=self._accept_mode_var,
                                     values=['Estado final', 'Pila vacia'],
                                     state='readonly', width=14)
         accept_combo.pack(side=tk.LEFT, padx=2)
 
-        # Initial stack symbol
-        ttk.Label(extra_bar, text='Pila inicial:').pack(side=tk.LEFT, padx=(6, 2))
+        ttk.Label(extra_bar2, text='Pila inicial:').pack(side=tk.LEFT, padx=(6, 2))
         self._stack_symbol_var = tk.StringVar(value='Z')
-        stack_entry = ttk.Entry(extra_bar, textvariable=self._stack_symbol_var,
+        stack_entry = ttk.Entry(extra_bar2, textvariable=self._stack_symbol_var,
                                 font=('Consolas', 10), width=3)
         stack_entry.pack(side=tk.LEFT, padx=2)
 
@@ -349,12 +351,16 @@ class PDATab(ttk.Frame):
     def _on_import(self):
         win = tk.Toplevel(self)
         win.title('Importar PDA desde texto')
-        win.geometry('550x450')
+        win.geometry('650x500')
+        win.minsize(550, 400)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Pega la definicion del PDA:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
                                            bg='#1E1E1E', fg='#D4D4D4',
@@ -381,8 +387,6 @@ class PDATab(ttk.Frame):
             self._write_result('PDA importado exitosamente desde texto.\n', 'info')
             win.destroy()
 
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
 
@@ -410,21 +414,16 @@ class PDATab(ttk.Frame):
 
         win = tk.Toplevel(self)
         win.title('Exportar PDA como texto')
-        win.geometry('550x400')
+        win.geometry('650x450')
+        win.minsize(550, 350)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Definicion del PDA:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
 
-        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
-                                           bg='#1E1E1E', fg='#D4D4D4',
-                                           insertbackground='white', padx=8, pady=8)
-        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        editor.insert('1.0', text)
-
         btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         def copy_all():
             win.clipboard_clear()
@@ -433,6 +432,12 @@ class PDATab(ttk.Frame):
 
         ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
 
     # ──────────────────────────────────────────────
     # Testing

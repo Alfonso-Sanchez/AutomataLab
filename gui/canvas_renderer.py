@@ -2,13 +2,13 @@
 
 import math
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 
 
 class AutomataCanvas(ttk.Frame):
     """Composite widget: toolbar + interactive canvas for building automata visually."""
 
-    STATE_RADIUS = 28
+    BASE_STATE_RADIUS = 28
     COLORS = {
         'bg': '#FAFAFA',
         'state_fill': '#E3F2FD',
@@ -42,6 +42,7 @@ class AutomataCanvas(ttk.Frame):
         super().__init__(parent)
         self._on_change_callback = None
         self._transition_dialog_callback = None
+        self.automaton_type = 'Automata'  # DFA, NFA, PDA - set by parent tab
 
         # --- Data model ---
         self.states = {}       # name -> {'x': float, 'y': float, 'is_initial': bool, 'is_accept': bool}
@@ -49,13 +50,19 @@ class AutomataCanvas(ttk.Frame):
 
         # --- Interaction state ---
         self._mode = 'select'
-        self._next_state_id = 0
         self._drag_state = None
         self._drag_offset = (0, 0)
-        self._transition_source = None  # source state name for transition mode
+        self._transition_source = None
         self._hover_state = None
         self._selected_state = None
-        self._highlighted_states = {}  # name -> highlight_type ('normal', 'accept', 'reject')
+        self._highlighted_states = {}
+
+        # --- Zoom / Pan state ---
+        self._zoom = 1.0
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self._pan_dragging = False
+        self._pan_start = (0, 0)
 
         # --- Build UI ---
         self._build_toolbar()
@@ -70,38 +77,72 @@ class AutomataCanvas(ttk.Frame):
         self.canvas.bind('<Motion>', self._on_motion)
         self.canvas.bind('<Configure>', lambda e: self._redraw())
 
+        # Zoom with mousewheel
+        self.canvas.bind('<MouseWheel>', self._on_mousewheel)
+        # Pan with middle mouse button
+        self.canvas.bind('<Button-2>', self._on_pan_start)
+        self.canvas.bind('<B2-Motion>', self._on_pan_drag)
+        self.canvas.bind('<ButtonRelease-2>', self._on_pan_end)
+        # Also support Shift+drag for pan (more common on laptops)
+        self.canvas.bind('<Shift-Button-1>', self._on_pan_start)
+        self.canvas.bind('<Shift-B1-Motion>', self._on_pan_drag)
+        self.canvas.bind('<Shift-ButtonRelease-1>', self._on_pan_end)
+
     # ──────────────────────────────────────────────
     # Toolbar
     # ──────────────────────────────────────────────
 
     def _build_toolbar(self):
-        self.toolbar = ttk.Frame(self)
-        self.toolbar.pack(fill=tk.X, padx=2, pady=(2, 0))
+        toolbar_container = ttk.Frame(self)
+        toolbar_container.pack(fill=tk.X, padx=2, pady=(2, 0))
+
+        # Row 1: Mode buttons
+        row1 = ttk.Frame(toolbar_container)
+        row1.pack(fill=tk.X)
+        row1.columnconfigure(100, weight=1)  # spacer column
 
         self._mode_buttons = {}
         modes_config = [
+            ('select', '\u270b Mover'),
             ('add_state', '\u2795 Estado'),
-            ('add_transition', '\u27a1 Transicion'),
+            ('add_transition', '\u27a1 Trans.'),
             ('set_initial', '\U0001f3c1 Inicial'),
-            ('set_accept', '\u2713 Aceptacion'),
+            ('set_accept', '\u2713 Acept.'),
             ('delete', '\U0001f5d1 Eliminar'),
         ]
-        for mode_key, label in modes_config:
-            btn = ttk.Button(self.toolbar, text=label,
+        for col, (mode_key, label) in enumerate(modes_config):
+            btn = ttk.Button(row1, text=label,
                              command=lambda m=mode_key: self.set_mode(m))
-            btn.pack(side=tk.LEFT, padx=1)
+            btn.grid(row=0, column=col, padx=1, pady=1, sticky=tk.W)
             self._mode_buttons[mode_key] = btn
 
-        ttk.Separator(self.toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=4)
-
-        self._btn_clear = ttk.Button(self.toolbar, text='\U0001f9f9 Limpiar',
-                                     command=self.clear_all)
-        self._btn_clear.pack(side=tk.LEFT, padx=1)
-
-        # Mode indicator label
-        self._mode_label = ttk.Label(self.toolbar, text='Modo: Seleccionar',
+        self._mode_label = ttk.Label(row1, text='Modo: Seleccionar',
                                      font=('Segoe UI', 8, 'italic'))
-        self._mode_label.pack(side=tk.RIGHT, padx=6)
+        self._mode_label.grid(row=0, column=100, padx=4, sticky=tk.E)
+
+        # Row 2: Clear + Zoom + Export
+        row2 = ttk.Frame(toolbar_container)
+        row2.pack(fill=tk.X)
+        row2.columnconfigure(10, weight=1)  # spacer column
+
+        self._btn_clear = ttk.Button(row2, text='\U0001f9f9 Limpiar',
+                                     command=self.clear_all)
+        self._btn_clear.grid(row=0, column=0, padx=1, pady=1, sticky=tk.W)
+
+        # Zoom controls on the right
+        self._zoom_label = ttk.Label(row2, text='100%',
+                                     font=('Segoe UI', 8), width=5, anchor=tk.CENTER)
+        self._zoom_label.grid(row=0, column=11, padx=2)
+        ttk.Button(row2, text='+', width=2,
+                   command=lambda: self._zoom_by(1.25)).grid(row=0, column=12, padx=0, pady=1)
+        ttk.Button(row2, text='\u2212', width=2,
+                   command=lambda: self._zoom_by(0.8)).grid(row=0, column=13, padx=0, pady=1)
+        ttk.Button(row2, text='Reset', width=5,
+                   command=self._reset_view).grid(row=0, column=14, padx=1, pady=1)
+        ttk.Button(row2, text='\U0001f4f7 Foto', width=6,
+                   command=self._export_image).grid(row=0, column=15, padx=1, pady=1)
+
+        self.toolbar = toolbar_container
 
     # ──────────────────────────────────────────────
     # Public API
@@ -140,13 +181,15 @@ class AutomataCanvas(ttk.Frame):
         """
         self.states = {}
         self.transitions = []
-        self._next_state_id = 0
+        self._zoom = 1.0
+        self._pan_x = 0.0
+        self._pan_y = 0.0
 
         if not states:
             self._redraw()
             return
 
-        # Layout in circle
+        # Layout in circle (world coordinates)
         self.canvas.update_idletasks()
         w = max(self.canvas.winfo_width(), 450)
         h = max(self.canvas.winfo_height(), 350)
@@ -166,13 +209,6 @@ class AutomataCanvas(ttk.Frame):
                 'is_initial': (name == initial),
                 'is_accept': (name in accept),
             }
-            # Track next auto-id
-            if name.startswith('q'):
-                try:
-                    num = int(name[1:])
-                    self._next_state_id = max(self._next_state_id, num + 1)
-                except ValueError:
-                    pass
 
         # Parse transition labels
         for (from_s, to_s), label_str in transition_labels.items():
@@ -187,12 +223,15 @@ class AutomataCanvas(ttk.Frame):
         """Reset canvas to empty."""
         self.states = {}
         self.transitions = []
-        self._next_state_id = 0
         self._drag_state = None
         self._transition_source = None
         self._hover_state = None
         self._selected_state = None
         self._highlighted_states = {}
+        self._zoom = 1.0
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self._zoom_label.config(text='100%')
         self._redraw()
         self._fire_change()
 
@@ -225,6 +264,262 @@ class AutomataCanvas(ttk.Frame):
         """Set callback invoked when automaton model changes (states/transitions modified)."""
         self._on_change_callback = callback
 
+    @property
+    def STATE_RADIUS(self):
+        return self.BASE_STATE_RADIUS * self._zoom
+
+    # ──────────────────────────────────────────────
+    # Smart state ID: reuse lowest available qN
+    # ──────────────────────────────────────────────
+
+    def _next_available_state_name(self):
+        """Find the lowest qN name not currently in use."""
+        used = set()
+        for name in self.states:
+            if name.startswith('q'):
+                try:
+                    used.add(int(name[1:]))
+                except ValueError:
+                    pass
+        n = 0
+        while n in used:
+            n += 1
+        return f'q{n}'
+
+    # ──────────────────────────────────────────────
+    # Coordinate transforms (world <-> screen)
+    # ──────────────────────────────────────────────
+
+    def _world_to_screen(self, wx, wy):
+        """Convert world (model) coordinates to screen (canvas) coordinates."""
+        sx = wx * self._zoom + self._pan_x
+        sy = wy * self._zoom + self._pan_y
+        return sx, sy
+
+    def _screen_to_world(self, sx, sy):
+        """Convert screen (canvas) coordinates to world (model) coordinates."""
+        wx = (sx - self._pan_x) / self._zoom
+        wy = (sy - self._pan_y) / self._zoom
+        return wx, wy
+
+    # ──────────────────────────────────────────────
+    # Zoom / Pan
+    # ──────────────────────────────────────────────
+
+    def _zoom_by(self, factor):
+        """Zoom centered on canvas middle."""
+        cx = self.canvas.winfo_width() / 2
+        cy = self.canvas.winfo_height() / 2
+        # Adjust pan so center stays fixed
+        self._pan_x = cx - (cx - self._pan_x) * factor
+        self._pan_y = cy - (cy - self._pan_y) * factor
+        self._zoom *= factor
+        self._zoom = max(0.2, min(5.0, self._zoom))
+        self._zoom_label.config(text=f'{int(self._zoom * 100)}%')
+        self._redraw()
+
+    def _reset_view(self):
+        """Reset zoom and pan to defaults."""
+        self._zoom = 1.0
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self._zoom_label.config(text='100%')
+        self._redraw()
+
+    def _on_mousewheel(self, event):
+        factor = 1.1 if event.delta > 0 else 0.9
+        # Zoom centered on mouse position
+        mx, my = event.x, event.y
+        self._pan_x = mx - (mx - self._pan_x) * factor
+        self._pan_y = my - (my - self._pan_y) * factor
+        self._zoom *= factor
+        self._zoom = max(0.2, min(5.0, self._zoom))
+        self._zoom_label.config(text=f'{int(self._zoom * 100)}%')
+        self._redraw()
+
+    def _on_pan_start(self, event):
+        self._pan_dragging = True
+        self._pan_start = (event.x, event.y)
+
+    def _on_pan_drag(self, event):
+        if self._pan_dragging:
+            dx = event.x - self._pan_start[0]
+            dy = event.y - self._pan_start[1]
+            self._pan_x += dx
+            self._pan_y += dy
+            self._pan_start = (event.x, event.y)
+            self._redraw()
+
+    def _on_pan_end(self, event):
+        self._pan_dragging = False
+
+    # ──────────────────────────────────────────────
+    # Export to image
+    # ──────────────────────────────────────────────
+
+    def _export_image(self):
+        """Export the canvas as a PNG image using Pillow (no Ghostscript needed)."""
+        if not self.states:
+            return
+
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        default_name = f'{self.automaton_type}_{timestamp}.png'
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension='.png',
+            initialfile=default_name,
+            filetypes=[('PNG', '*.png'), ('All files', '*.*')],
+            title='Exportar diagrama como imagen'
+        )
+        if not filepath:
+            return
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+
+            margin = 100
+            xs = [d['x'] for d in self.states.values()]
+            ys = [d['y'] for d in self.states.values()]
+            min_x = min(xs) - margin
+            min_y = min(ys) - margin
+            max_x = max(xs) + margin
+            max_y = max(ys) + margin
+
+            scale = 2
+            w = int((max_x - min_x) * scale)
+            h = int((max_y - min_y) * scale)
+            img = Image.new('RGB', (w, h), 'white')
+            draw = ImageDraw.Draw(img)
+
+            r = self.BASE_STATE_RADIUS * scale
+            arrow_size = 10 * scale
+
+            try:
+                font = ImageFont.truetype("consola.ttf", 13 * scale)
+                font_sm = ImageFont.truetype("consola.ttf", 10 * scale)
+            except (OSError, IOError):
+                font = ImageFont.load_default()
+                font_sm = font
+
+            def to_img(wx, wy):
+                return int((wx - min_x) * scale), int((wy - min_y) * scale)
+
+            def draw_arrowhead(x1, y1, x2, y2, color='#555555', size=None):
+                """Draw a filled arrowhead at (x2, y2) pointing from (x1,y1)."""
+                sz = size or arrow_size
+                dx = x2 - x1
+                dy = y2 - y1
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist == 0:
+                    return
+                ndx, ndy = dx / dist, dy / dist
+                # Base of arrowhead
+                bx = x2 - ndx * sz
+                by = y2 - ndy * sz
+                # Perpendicular
+                px, py = -ndy * sz * 0.4, ndx * sz * 0.4
+                points = [(x2, y2), (bx + px, by + py), (bx - px, by - py)]
+                draw.polygon(points, fill=color)
+
+            # Group transitions
+            grouped = {}
+            pair_set = set()
+            for t in self.transitions:
+                pair_set.add((t['from'], t['to']))
+                key = (t['from'], t['to'])
+                if key not in grouped:
+                    grouped[key] = []
+                grouped[key].append(t['label'])
+
+            # Draw transitions
+            for (from_s, to_s), labels in grouped.items():
+                if from_s not in self.states or to_s not in self.states:
+                    continue
+                sf = self.states[from_s]
+                st = self.states[to_s]
+                x1, y1 = to_img(sf['x'], sf['y'])
+                x2, y2 = to_img(st['x'], st['y'])
+                label = ', '.join(labels) if all(len(l) <= 3 for l in labels) else '\n'.join(labels)
+
+                if from_s == to_s:
+                    loop_r = int(20 * scale)
+                    cx, cy = x1, y1 - int(r) - loop_r
+                    draw.ellipse([cx - loop_r, cy - loop_r, cx + loop_r, cy + loop_r],
+                                 outline='#555555', width=max(2, scale))
+                    draw.text((cx, cy - loop_r - 6 * scale), label,
+                              fill='#222222', font=font_sm, anchor='mb')
+                else:
+                    # Line from edge of source to edge of target
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    dist = math.sqrt(dx * dx + dy * dy)
+                    if dist == 0:
+                        continue
+                    ndx, ndy = dx / dist, dy / dist
+
+                    has_reverse = (to_s, from_s) in pair_set
+                    if has_reverse:
+                        offset = 8 * scale
+                        px, py = -ndy * offset, ndx * offset
+                    else:
+                        px, py = 0, 0
+
+                    sx = x1 + ndx * r + px
+                    sy = y1 + ndy * r + py
+                    ex = x2 - ndx * r + px
+                    ey = y2 - ndy * r + py
+
+                    draw.line([(int(sx), int(sy)), (int(ex), int(ey))],
+                              fill='#555555', width=max(2, scale))
+                    draw_arrowhead(sx, sy, ex, ey)
+
+                    # Label at midpoint
+                    mx = (sx + ex) / 2 - ndy * 14 * scale
+                    my = (sy + ey) / 2 + ndx * 14 * scale
+                    draw.text((int(mx), int(my)), label,
+                              fill='#222222', font=font_sm, anchor='mm')
+
+            # Draw initial arrows
+            for name, data in self.states.items():
+                if data['is_initial']:
+                    ix, iy = to_img(data['x'], data['y'])
+                    arrow_len = 35 * scale
+                    start_x = ix - int(r) - int(arrow_len)
+                    end_x = ix - int(r)
+                    draw.line([(start_x, iy), (end_x, iy)],
+                              fill='#333333', width=max(2, scale))
+                    draw_arrowhead(start_x, iy, end_x, iy, color='#333333')
+
+            # Draw states
+            for name, data in self.states.items():
+                cx, cy = to_img(data['x'], data['y'])
+                is_accept = data['is_accept']
+
+                fill_c = '#E8F5E9' if is_accept else '#E3F2FD'
+                outline_c = '#1B5E20' if is_accept else '#1565C0'
+
+                draw.ellipse([cx - r, cy - r, cx + r, cy + r],
+                             fill=fill_c, outline=outline_c, width=3)
+                if is_accept:
+                    ir = r - 5 * scale
+                    draw.ellipse([cx - ir, cy - ir, cx + ir, cy + ir],
+                                 fill=fill_c, outline=outline_c, width=3)
+                draw.text((cx, cy), name, fill=outline_c, font=font, anchor='mm')
+
+            img.save(filepath)
+            from tkinter import messagebox
+            messagebox.showinfo('Exportar', f'Imagen guardada:\n{filepath}', parent=self)
+        except ImportError:
+            from tkinter import messagebox
+            messagebox.showerror(
+                'Error al exportar',
+                'Pillow no esta instalado.\nEjecuta: pip install Pillow',
+                parent=self
+            )
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror('Error al exportar', str(e), parent=self)
+
     # ──────────────────────────────────────────────
     # Event handlers
     # ──────────────────────────────────────────────
@@ -233,18 +528,20 @@ class AutomataCanvas(ttk.Frame):
         if self._on_change_callback:
             self._on_change_callback()
 
-    def _state_at(self, x, y):
-        """Return state name at canvas position, or None."""
-        r = self.STATE_RADIUS
+    def _state_at(self, sx, sy):
+        """Return state name at screen position, or None."""
+        wx, wy = self._screen_to_world(sx, sy)
+        r = self.BASE_STATE_RADIUS + 4
         for name, data in self.states.items():
-            dx = x - data['x']
-            dy = y - data['y']
-            if dx * dx + dy * dy <= (r + 4) ** 2:
+            dx = wx - data['x']
+            dy = wy - data['y']
+            if dx * dx + dy * dy <= r * r:
                 return name
         return None
 
-    def _transition_at(self, x, y):
-        """Return index of transition near position, or None."""
+    def _transition_at(self, sx, sy):
+        """Return index of transition near screen position, or None."""
+        wx, wy = self._screen_to_world(sx, sy)
         threshold = 12
         for i, t in enumerate(self.transitions):
             if t['from'] not in self.states or t['to'] not in self.states:
@@ -253,15 +550,13 @@ class AutomataCanvas(ttk.Frame):
             e = self.states[t['to']]
 
             if t['from'] == t['to']:
-                # Self-loop: check if near the loop circle above
                 loop_cx = s['x']
-                loop_cy = s['y'] - self.STATE_RADIUS - 20
-                dist = math.sqrt((x - loop_cx) ** 2 + (y - loop_cy) ** 2)
+                loop_cy = s['y'] - self.BASE_STATE_RADIUS - 20
+                dist = math.sqrt((wx - loop_cx) ** 2 + (wy - loop_cy) ** 2)
                 if abs(dist - 20) < threshold:
                     return i
             else:
-                # Check distance to line segment
-                dist = self._point_to_segment_dist(x, y, s['x'], s['y'], e['x'], e['y'])
+                dist = self._point_to_segment_dist(wx, wy, s['x'], s['y'], e['x'], e['y'])
                 if dist < threshold:
                     return i
         return None
@@ -284,7 +579,8 @@ class AutomataCanvas(ttk.Frame):
             if clicked_state:
                 self._drag_state = clicked_state
                 data = self.states[clicked_state]
-                self._drag_offset = (x - data['x'], y - data['y'])
+                wx, wy = self._screen_to_world(x, y)
+                self._drag_offset = (wx - data['x'], wy - data['y'])
                 self._selected_state = clicked_state
             else:
                 self._selected_state = None
@@ -292,15 +588,14 @@ class AutomataCanvas(ttk.Frame):
 
         elif self._mode == 'add_state':
             if not clicked_state:
-                name = f'q{self._next_state_id}'
-                self._next_state_id += 1
-                is_initial = len(self.states) == 0  # first state is initial by default
+                name = self._next_available_state_name()
+                wx, wy = self._screen_to_world(x, y)
+                is_initial = len(self.states) == 0
                 self.states[name] = {
-                    'x': x, 'y': y,
+                    'x': wx, 'y': wy,
                     'is_initial': is_initial,
                     'is_accept': False,
                 }
-                # If this is initial, make sure no other state is initial
                 if is_initial:
                     for other_name, other_data in self.states.items():
                         if other_name != name:
@@ -371,8 +666,9 @@ class AutomataCanvas(ttk.Frame):
         if self._mode == 'select' and self._drag_state:
             name = self._drag_state
             ox, oy = self._drag_offset
-            self.states[name]['x'] = event.x - ox
-            self.states[name]['y'] = event.y - oy
+            wx, wy = self._screen_to_world(event.x, event.y)
+            self.states[name]['x'] = wx - ox
+            self.states[name]['y'] = wy - oy
             self._redraw()
 
     def _on_release(self, event):
@@ -393,11 +689,12 @@ class AutomataCanvas(ttk.Frame):
     def _redraw(self):
         self.canvas.delete('all')
         if not self.states:
+            cw = self.canvas.winfo_width() or 450
+            ch = self.canvas.winfo_height() or 350
             self.canvas.create_text(
-                self.canvas.winfo_width() / 2 or 225,
-                self.canvas.winfo_height() / 2 or 175,
-                text='Usa la barra de herramientas para agregar estados y transiciones',
-                font=('Segoe UI', 10, 'italic'), fill='#999999'
+                cw / 2, ch / 2,
+                text='Usa la barra para agregar estados.\nScroll=zoom, Shift+drag=mover vista.',
+                font=('Segoe UI', 10, 'italic'), fill='#999999', justify=tk.CENTER
             )
             return
 
@@ -416,16 +713,16 @@ class AutomataCanvas(ttk.Frame):
         # Draw pending transition line
         if self._mode == 'add_transition' and self._transition_source:
             src = self.states[self._transition_source]
-            # Draw a dashed line from source to cursor
+            sx, sy = self._world_to_screen(src['x'], src['y'])
             self.canvas.create_line(
-                src['x'], src['y'],
+                sx, sy,
                 self.canvas.winfo_pointerx() - self.canvas.winfo_rootx(),
                 self.canvas.winfo_pointery() - self.canvas.winfo_rooty(),
                 dash=(4, 4), fill='#999', width=1.5
             )
 
     def _draw_state(self, name, data):
-        x, y = data['x'], data['y']
+        x, y = self._world_to_screen(data['x'], data['y'])
         r = self.STATE_RADIUS
         is_accept = data['is_accept']
 
@@ -462,19 +759,21 @@ class AutomataCanvas(ttk.Frame):
                                 fill=fill, outline=border, width=border_width)
 
         if is_accept:
-            inner_r = r - 5
+            inner_r = r - 5 * self._zoom
             self.canvas.create_oval(x - inner_r, y - inner_r,
                                     x + inner_r, y + inner_r,
                                     fill=fill, outline=border, width=border_width)
 
-        self.canvas.create_text(x, y, text=name, font=('Consolas', 11, 'bold'),
+        font_size = max(7, int(11 * self._zoom))
+        self.canvas.create_text(x, y, text=name, font=('Consolas', font_size, 'bold'),
                                 fill=border)
 
     def _draw_initial_arrow(self, state_name):
         data = self.states[state_name]
-        x, y = data['x'], data['y']
+        x, y = self._world_to_screen(data['x'], data['y'])
         r = self.STATE_RADIUS
-        start_x = x - r - 35
+        arrow_len = 35 * self._zoom
+        start_x = x - r - arrow_len
         self.canvas.create_line(start_x, y, x - r, y,
                                 arrow=tk.LAST, fill=self.COLORS['initial_arrow'],
                                 width=2, arrowshape=(10, 12, 5))
@@ -506,8 +805,8 @@ class AutomataCanvas(ttk.Frame):
     def _draw_arrow(self, from_state, to_state, label, curve=False):
         s = self.states[from_state]
         e = self.states[to_state]
-        x1, y1 = s['x'], s['y']
-        x2, y2 = e['x'], e['y']
+        x1, y1 = self._world_to_screen(s['x'], s['y'])
+        x2, y2 = self._world_to_screen(e['x'], e['y'])
         r = self.STATE_RADIUS
 
         dx = x2 - x1
@@ -554,7 +853,7 @@ class AutomataCanvas(ttk.Frame):
         for line_i, line_text in enumerate(label.split('\n')):
             text_y = ly + line_i * 14
             text_id = self.canvas.create_text(lx, text_y, text=line_text,
-                                              font=('Consolas', 9),
+                                              font=('Consolas', max(7, int(9 * self._zoom))),
                                               fill=self.COLORS['transition_text'])
             bbox = self.canvas.bbox(text_id)
             if bbox:
@@ -566,9 +865,9 @@ class AutomataCanvas(ttk.Frame):
 
     def _draw_self_loop(self, state_name, label):
         data = self.states[state_name]
-        x, y = data['x'], data['y']
+        x, y = self._world_to_screen(data['x'], data['y'])
         r = self.STATE_RADIUS
-        loop_r = 20
+        loop_r = 20 * self._zoom
 
         cx = x
         cy = y - r - loop_r
@@ -588,7 +887,7 @@ class AutomataCanvas(ttk.Frame):
         for line_i, line_text in enumerate(label.split('\n')):
             text_y = cy - loop_r - 8 + line_i * 14
             text_id = self.canvas.create_text(cx, text_y, text=line_text,
-                                              font=('Consolas', 9),
+                                              font=('Consolas', max(7, int(9 * self._zoom))),
                                               fill=self.COLORS['transition_text'])
             bbox = self.canvas.bbox(text_id)
             if bbox:

@@ -33,15 +33,15 @@ class DFATab(ttk.Frame):
 
         # Canvas with integrated toolbar
         self.canvas = AutomataCanvas(left_frame, width=500, height=400)
+        self.canvas.automaton_type = 'DFA'
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.set_transition_dialog(self._transition_dialog)
         self.canvas.set_on_change(self._on_canvas_change)
 
-        # Extra buttons row below canvas
+        # Row 1: Examples
         extra_bar = ttk.Frame(left_frame)
         extra_bar.pack(fill=tk.X, pady=(2, 0))
 
-        # Example dropdown
         ttk.Label(extra_bar, text='Ejemplo:').pack(side=tk.LEFT, padx=(0, 2))
         self._example_var = tk.StringVar(value='Seleccionar...')
         example_combo = ttk.Combobox(extra_bar, textvariable=self._example_var,
@@ -50,12 +50,10 @@ class DFATab(ttk.Frame):
         example_combo.pack(side=tk.LEFT, padx=2)
         example_combo.bind('<<ComboboxSelected>>', self._on_example_selected)
 
-        ttk.Separator(extra_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-
-        ttk.Button(extra_bar, text='Importar texto',
-                   command=self._on_import).pack(side=tk.LEFT, padx=2)
-        ttk.Button(extra_bar, text='Exportar texto',
-                   command=self._on_export).pack(side=tk.LEFT, padx=2)
+        ttk.Button(extra_bar, text='Importar',
+                   command=self._on_import).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(extra_bar, text='Exportar',
+                   command=self._on_export).pack(side=tk.RIGHT, padx=2)
 
         # --- Right panel: Testing ---
         right_frame = ttk.Frame(self.paned)
@@ -229,12 +227,16 @@ class DFATab(ttk.Frame):
         """Open a dialog to import a text definition."""
         win = tk.Toplevel(self)
         win.title('Importar DFA desde texto')
-        win.geometry('500x400')
+        win.geometry('620x450')
+        win.minsize(500, 350)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Pega la definicion del DFA:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
                                            bg='#1E1E1E', fg='#D4D4D4',
@@ -257,8 +259,6 @@ class DFATab(ttk.Frame):
             self._write_result('DFA importado exitosamente desde texto.\n', 'info')
             win.destroy()
 
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
 
@@ -281,21 +281,16 @@ class DFATab(ttk.Frame):
 
         win = tk.Toplevel(self)
         win.title('Exportar DFA como texto')
-        win.geometry('500x350')
+        win.geometry('620x400')
+        win.minsize(500, 300)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Definicion del DFA:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
 
-        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
-                                           bg='#1E1E1E', fg='#D4D4D4',
-                                           insertbackground='white', padx=8, pady=8)
-        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        editor.insert('1.0', text)
-
         btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         def copy_all():
             win.clipboard_clear()
@@ -304,6 +299,12 @@ class DFATab(ttk.Frame):
 
         ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
 
     # ──────────────────────────────────────────────
     # Testing

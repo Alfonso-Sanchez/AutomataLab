@@ -314,12 +314,16 @@ class CFGTab(BaseTab):
     def _on_import(self):
         win = tk.Toplevel(self)
         win.title('Importar CFG desde texto')
-        win.geometry('500x400')
+        win.geometry('620x450')
+        win.minsize(500, 350)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Pega la definicion de la gramatica:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
                                            bg='#1E1E1E', fg='#D4D4D4',
@@ -339,8 +343,6 @@ class CFGTab(BaseTab):
             self.status_var.set(f'CFG importada: {len(cfg.variables)} variables')
             win.destroy()
 
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
 
@@ -353,21 +355,16 @@ class CFGTab(BaseTab):
 
         win = tk.Toplevel(self)
         win.title('Exportar CFG como texto')
-        win.geometry('500x350')
+        win.geometry('620x400')
+        win.minsize(500, 300)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Definicion de la CFG:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
 
-        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
-                                           bg='#1E1E1E', fg='#D4D4D4',
-                                           insertbackground='white', padx=8, pady=8)
-        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        editor.insert('1.0', text)
-
         btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         def copy_all():
             win.clipboard_clear()
@@ -376,6 +373,12 @@ class CFGTab(BaseTab):
 
         ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
 
     # ------------------------------------------------------------------
     # Generate strings
@@ -583,8 +586,6 @@ class CFGTab(BaseTab):
         self.btn_clear = ttk.Button(btn_frame, text="Limpiar",
                                      command=self._clear_editor)
         self.btn_clear.pack(side=tk.LEFT, padx=2)
-
-        ttk.Separator(btn_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=4)
 
         ttk.Button(btn_frame, text="Importar",
                    command=self._on_import).pack(side=tk.LEFT, padx=2)

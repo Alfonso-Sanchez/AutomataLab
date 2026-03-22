@@ -95,6 +95,7 @@ class NFATab(ttk.Frame):
         self.paned.add(left_frame, weight=3)
 
         self.canvas = AutomataCanvas(left_frame, width=500, height=400)
+        self.canvas.automaton_type = 'NFA'
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.set_transition_dialog(self._transition_dialog)
         self.canvas.set_on_change(self._on_canvas_change)
@@ -111,12 +112,10 @@ class NFATab(ttk.Frame):
         example_combo.pack(side=tk.LEFT, padx=2)
         example_combo.bind('<<ComboboxSelected>>', self._on_example_selected)
 
-        ttk.Separator(extra_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-
-        ttk.Button(extra_bar, text='Importar texto',
-                   command=self._on_import).pack(side=tk.LEFT, padx=2)
-        ttk.Button(extra_bar, text='Exportar texto',
-                   command=self._on_export).pack(side=tk.LEFT, padx=2)
+        ttk.Button(extra_bar, text='Importar',
+                   command=self._on_import).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(extra_bar, text='Exportar',
+                   command=self._on_export).pack(side=tk.RIGHT, padx=2)
 
         # --- Right panel: Testing ---
         right_frame = ttk.Frame(self.paned)
@@ -255,12 +254,16 @@ class NFATab(ttk.Frame):
     def _on_import(self):
         win = tk.Toplevel(self)
         win.title('Importar NFA desde texto')
-        win.geometry('500x400')
+        win.geometry('620x450')
+        win.minsize(500, 350)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Pega la definicion del NFA:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
                                            bg='#1E1E1E', fg='#D4D4D4',
@@ -282,8 +285,6 @@ class NFATab(ttk.Frame):
             self._write_result('NFA importado exitosamente desde texto.\n', 'info')
             win.destroy()
 
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
 
@@ -305,21 +306,16 @@ class NFATab(ttk.Frame):
 
         win = tk.Toplevel(self)
         win.title('Exportar NFA como texto')
-        win.geometry('500x350')
+        win.geometry('620x400')
+        win.minsize(500, 300)
         win.transient(self.winfo_toplevel())
         win.grab_set()
 
         ttk.Label(win, text='Definicion del NFA:',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
 
-        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
-                                           bg='#1E1E1E', fg='#D4D4D4',
-                                           insertbackground='white', padx=8, pady=8)
-        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        editor.insert('1.0', text)
-
         btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
 
         def copy_all():
             win.clipboard_clear()
@@ -328,6 +324,12 @@ class NFATab(ttk.Frame):
 
         ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
 
     # ──────────────────────────────────────────────
     # Testing
