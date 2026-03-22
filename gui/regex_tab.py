@@ -138,6 +138,13 @@ class RegexTab(ttk.Frame):
         )
         self.btn_clear.pack(side=tk.LEFT, padx=2)
 
+        ttk.Separator(example_row, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
+
+        ttk.Button(example_row, text="Importar",
+                   command=self._on_import).pack(side=tk.LEFT, padx=2)
+        ttk.Button(example_row, text="Exportar",
+                   command=self._on_export).pack(side=tk.LEFT, padx=2)
+
         # --- Symbol insertion buttons ---
         sym_frame = ttk.Frame(input_section)
         sym_frame.pack(fill=tk.X, pady=(5, 0))
@@ -334,6 +341,91 @@ class RegexTab(ttk.Frame):
         self.tree = None
         self.nfa = None
         self.status_var.set("Limpiado.")
+
+    # ------------------------------------------------------------------
+    # Import / Export
+    # ------------------------------------------------------------------
+
+    def _on_import(self):
+        win = tk.Toplevel(self)
+        win.title('Importar Regex desde texto')
+        win.geometry('500x300')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        ttk.Label(win, text='Pega la definicion (Regex + Alfabeto):',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', '# Formato:\n# Regex: (a\u222ab)*abb\n# Alphabet: a, b\n')
+
+        def do_import():
+            text = editor.get('1.0', tk.END)
+            regex_str = ''
+            alpha_str = ''
+            for line in text.strip().split('\n'):
+                line = line.split('#')[0].strip()
+                if not line:
+                    continue
+                lower = line.lower()
+                if lower.startswith('regex:'):
+                    regex_str = line.split(':', 1)[1].strip()
+                elif lower.startswith('alphabet:') or lower.startswith('alfabeto:'):
+                    alpha_str = line.split(':', 1)[1].strip()
+                elif not regex_str:
+                    regex_str = line.strip()
+            if regex_str:
+                self.regex_entry.delete(0, tk.END)
+                self.regex_entry.insert(0, regex_str)
+            if alpha_str:
+                self.alpha_entry.delete(0, tk.END)
+                self.alpha_entry.insert(0, alpha_str)
+            self.status_var.set(f'Regex importada: {regex_str}')
+            win.destroy()
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+    def _on_export(self):
+        expr = self.regex_entry.get().strip()
+        alpha = self.alpha_entry.get().strip()
+        if not expr:
+            from tkinter import messagebox
+            messagebox.showinfo('Exportar', 'No hay expresion regular definida.', parent=self)
+            return
+
+        text = f'Regex: {expr}\nAlphabet: {alpha}'
+
+        win = tk.Toplevel(self)
+        win.title('Exportar Regex como texto')
+        win.geometry('500x250')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        ttk.Label(win, text='Definicion de la Regex:',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        def copy_all():
+            win.clipboard_clear()
+            win.clipboard_append(text)
+            self.status_var.set('Definicion copiada al portapapeles')
+
+        ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
 
     # ------------------------------------------------------------------
     # Example loading

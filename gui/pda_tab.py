@@ -23,31 +23,37 @@ class PDATransitionDialog(tk.Toplevel):
         main.pack(fill=tk.BOTH, expand=True)
 
         ttk.Label(main, text=f'Transicion: {from_state} \u2192 {to_state}',
-                  font=('Segoe UI', 10, 'bold')).grid(row=0, column=0, columnspan=2,
+                  font=('Segoe UI', 10, 'bold')).grid(row=0, column=0, columnspan=3,
                                                        sticky=tk.W, pady=(0, 10))
 
-        ttk.Label(main, text='Simbolo de entrada (\u03b5 para epsilon):').grid(
+        ttk.Label(main, text='Simbolo de entrada:').grid(
             row=1, column=0, sticky=tk.W, pady=2)
         self.input_var = ttk.Entry(main, font=('Consolas', 11), width=15)
         self.input_var.grid(row=1, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+        ttk.Button(main, text='\u03b5', width=2,
+                   command=lambda: self._insert_epsilon(self.input_var)
+                   ).grid(row=1, column=2, padx=(3, 0), pady=2)
 
         ttk.Label(main, text='Tope de pila:').grid(
             row=2, column=0, sticky=tk.W, pady=2)
         self.stack_top_var = ttk.Entry(main, font=('Consolas', 11), width=15)
         self.stack_top_var.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=2)
 
-        ttk.Label(main, text='Push en pila (\u03b5 para no push):').grid(
+        ttk.Label(main, text='Push en pila:').grid(
             row=3, column=0, sticky=tk.W, pady=2)
         self.stack_push_var = ttk.Entry(main, font=('Consolas', 11), width=15)
         self.stack_push_var.grid(row=3, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+        ttk.Button(main, text='\u03b5', width=2,
+                   command=lambda: self._insert_epsilon(self.stack_push_var)
+                   ).grid(row=3, column=2, padx=(3, 0), pady=2)
 
         ttk.Label(main, text='Formato resultado: entrada, tope/push',
                   font=('Segoe UI', 8, 'italic'),
-                  foreground='#888888').grid(row=4, column=0, columnspan=2,
+                  foreground='#888888').grid(row=4, column=0, columnspan=3,
                                              sticky=tk.W, pady=(8, 0))
 
         btn_frame = ttk.Frame(main)
-        btn_frame.grid(row=5, column=0, columnspan=2, pady=(12, 0))
+        btn_frame.grid(row=5, column=0, columnspan=3, pady=(12, 0))
 
         ttk.Button(btn_frame, text='Aceptar', command=self._on_ok).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text='Cancelar', command=self._on_cancel).pack(side=tk.LEFT, padx=5)
@@ -62,6 +68,11 @@ class PDATransitionDialog(tk.Toplevel):
         x = pw.winfo_x() + (pw.winfo_width() - self.winfo_width()) // 2
         y = pw.winfo_y() + (pw.winfo_height() - self.winfo_height()) // 2
         self.geometry(f'+{x}+{y}')
+
+    def _insert_epsilon(self, entry):
+        """Insert ε at cursor position in the given entry."""
+        entry.insert(tk.INSERT, '\u03b5')
+        entry.focus_set()
 
     def _on_ok(self):
         inp = self.input_var.get().strip()

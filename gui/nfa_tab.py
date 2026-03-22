@@ -7,6 +7,70 @@ from gui.canvas_renderer import AutomataCanvas
 from core.nfa import NFA
 
 
+class NFATransitionDialog(tk.Toplevel):
+    """Custom dialog for NFA transition input with epsilon button."""
+
+    def __init__(self, parent, from_state, to_state):
+        super().__init__(parent)
+        self.title('Transicion NFA')
+        self.transient(parent.winfo_toplevel())
+        self.grab_set()
+        self.resizable(False, False)
+
+        self.result = None
+
+        main = ttk.Frame(self, padding=15)
+        main.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main, text=f'Transicion: {from_state} \u2192 {to_state}',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, pady=(0, 10))
+
+        row = ttk.Frame(main)
+        row.pack(fill=tk.X, pady=5)
+
+        ttk.Label(row, text='Simbolo:').pack(side=tk.LEFT)
+        self.symbol_entry = ttk.Entry(row, font=('Consolas', 11), width=15)
+        self.symbol_entry.pack(side=tk.LEFT, padx=(5, 3))
+        ttk.Button(row, text='\u03b5', width=2,
+                   command=self._insert_epsilon).pack(side=tk.LEFT)
+
+        btn_frame = ttk.Frame(main)
+        btn_frame.pack(pady=(12, 0))
+
+        ttk.Button(btn_frame, text='Aceptar', command=self._on_ok).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text='Cancelar', command=self._on_cancel).pack(side=tk.LEFT, padx=5)
+
+        self.symbol_entry.focus_set()
+        self.bind('<Return>', lambda e: self._on_ok())
+        self.bind('<Escape>', lambda e: self._on_cancel())
+
+        # Center on parent
+        self.update_idletasks()
+        pw = parent.winfo_toplevel()
+        x = pw.winfo_x() + (pw.winfo_width() - self.winfo_width()) // 2
+        y = pw.winfo_y() + (pw.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f'+{x}+{y}')
+
+    def _insert_epsilon(self):
+        self.symbol_entry.insert(tk.INSERT, '\u03b5')
+        self.symbol_entry.focus_set()
+
+    def _on_ok(self):
+        symbol = self.symbol_entry.get().strip()
+        if not symbol:
+            self.result = None
+            self.destroy()
+            return
+        if symbol.lower() in ('eps', 'epsilon', 'e'):
+            symbol = '\u03b5'
+        self.result = symbol
+        self.destroy()
+
+    def _on_cancel(self):
+        self.result = None
+        self.destroy()
+
+
 class NFATab(ttk.Frame):
     """Interactive NFA builder and tester tab."""
 
@@ -100,22 +164,10 @@ class NFATab(ttk.Frame):
     # ──────────────────────────────────────────────
 
     def _transition_dialog(self, from_state, to_state):
-        """Prompt for NFA transition symbol, allowing epsilon."""
-        symbol = simpledialog.askstring(
-            'Transicion NFA',
-            f'Simbolo para {from_state} \u2192 {to_state}:\n'
-            '(usa \u03b5 o "eps" para transicion epsilon)',
-            parent=self
-        )
-        if symbol is None:
-            return None
-        symbol = symbol.strip()
-        if not symbol:
-            return None
-        # Normalize epsilon
-        if symbol.lower() in ('eps', 'epsilon', '\u03b5', 'e'):
-            symbol = '\u03b5'
-        return symbol
+        """Open custom dialog for NFA transition with epsilon button."""
+        dlg = NFATransitionDialog(self, from_state, to_state)
+        self.wait_window(dlg)
+        return dlg.result
 
     # ──────────────────────────────────────────────
     # Canvas change

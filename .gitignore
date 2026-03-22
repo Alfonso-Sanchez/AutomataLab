@@ -1,3 +1,5 @@
 build
 dist
 AutomataLab.spec
+gui/__pycache__
+gui/__init__.py

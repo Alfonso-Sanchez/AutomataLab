@@ -308,6 +308,76 @@ class CFGTab(BaseTab):
             self._write_result(msg + '\n', 'rejected')
 
     # ------------------------------------------------------------------
+    # Import / Export
+    # ------------------------------------------------------------------
+
+    def _on_import(self):
+        win = tk.Toplevel(self)
+        win.title('Importar CFG desde texto')
+        win.geometry('500x400')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        ttk.Label(win, text='Pega la definicion de la gramatica:',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        def do_import():
+            text = editor.get('1.0', tk.END)
+            cfg, errors = CFG.parse(text)
+            if errors:
+                from tkinter import messagebox
+                messagebox.showerror('Errores de parseo', '\n'.join(errors), parent=win)
+                return
+            self._set_editor_text(text.strip())
+            self.cfg = cfg
+            self._on_build()
+            self.status_var.set(f'CFG importada: {len(cfg.variables)} variables')
+            win.destroy()
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_frame, text='Cancelar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+    def _on_export(self):
+        text = self._get_editor_text().strip()
+        if not text:
+            from tkinter import messagebox
+            messagebox.showinfo('Exportar', 'No hay gramatica definida.', parent=self)
+            return
+
+        win = tk.Toplevel(self)
+        win.title('Exportar CFG como texto')
+        win.geometry('500x350')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        ttk.Label(win, text='Definicion de la CFG:',
+                  font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=10, pady=(10, 2))
+
+        editor = scrolledtext.ScrolledText(win, wrap=tk.WORD, font=('Consolas', 11),
+                                           bg='#1E1E1E', fg='#D4D4D4',
+                                           insertbackground='white', padx=8, pady=8)
+        editor.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        editor.insert('1.0', text)
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        def copy_all():
+            win.clipboard_clear()
+            win.clipboard_append(text)
+            self.status_var.set('Definicion copiada al portapapeles')
+
+        ttk.Button(btn_frame, text='Copiar', command=copy_all).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_frame, text='Cerrar', command=win.destroy).pack(side=tk.RIGHT, padx=2)
+
+    # ------------------------------------------------------------------
     # Generate strings
     # ------------------------------------------------------------------
 
@@ -513,6 +583,13 @@ class CFGTab(BaseTab):
         self.btn_clear = ttk.Button(btn_frame, text="Limpiar",
                                      command=self._clear_editor)
         self.btn_clear.pack(side=tk.LEFT, padx=2)
+
+        ttk.Separator(btn_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=4)
+
+        ttk.Button(btn_frame, text="Importar",
+                   command=self._on_import).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Exportar",
+                   command=self._on_export).pack(side=tk.LEFT, padx=2)
 
         # Symbol insertion buttons
         sym_frame = ttk.Frame(left_frame)
