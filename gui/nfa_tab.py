@@ -117,14 +117,21 @@ class NFATab(ttk.Frame):
         ttk.Button(extra_bar, text='Exportar',
                    command=self._on_export).pack(side=tk.RIGHT, padx=2)
 
-        # --- Right panel: Testing ---
+        # --- Right panel: Testing + Formal Definition ---
         right_frame = ttk.Frame(self.paned)
         self.paned.add(right_frame, weight=2)
 
-        ttk.Label(right_frame, text='Probar Cadenas',
+        self._right_notebook = ttk.Notebook(right_frame)
+        self._right_notebook.pack(fill=tk.BOTH, expand=True)
+
+        # === Tab 1: Ejecucion ===
+        exec_frame = ttk.Frame(self._right_notebook)
+        self._right_notebook.add(exec_frame, text='Ejecucion')
+
+        ttk.Label(exec_frame, text='Probar Cadenas',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=5, pady=(5, 2))
 
-        input_frame = ttk.Frame(right_frame)
+        input_frame = ttk.Frame(exec_frame)
         input_frame.pack(fill=tk.X, padx=5, pady=2)
 
         ttk.Label(input_frame, text='Cadena:').pack(side=tk.LEFT)
@@ -138,7 +145,7 @@ class NFATab(ttk.Frame):
                    command=self._on_step).pack(side=tk.LEFT, padx=2)
 
         self.results = scrolledtext.ScrolledText(
-            right_frame, wrap=tk.WORD, font=('Consolas', 10),
+            exec_frame, wrap=tk.WORD, font=('Consolas', 10),
             bg='#1A1A2E', fg='#E0E0E0',
             insertbackground='white', state='disabled',
             padx=8, pady=5
@@ -152,6 +159,27 @@ class NFATab(ttk.Frame):
         self.results.tag_configure('error', foreground='#FF9800')
         self.results.tag_configure('info', foreground='#64B5F6')
         self.results.tag_configure('step', foreground='#CE93D8')
+
+        # === Tab 2: Definicion Formal + Tabla δ ===
+        info_frame = ttk.Frame(self._right_notebook)
+        self._right_notebook.add(info_frame, text='Definicion / Tabla \u03b4')
+
+        self._info_text = scrolledtext.ScrolledText(
+            info_frame, wrap=tk.WORD, font=('Consolas', 10),
+            bg='#1A1A2E', fg='#E0E0E0', state='disabled',
+            padx=8, pady=5
+        )
+        self._info_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self._info_text.tag_configure('title', foreground='#FFD54F',
+                                       font=('Consolas', 11, 'bold'))
+        self._info_text.tag_configure('formal', foreground='#80CBC4',
+                                       font=('Consolas', 10))
+        self._info_text.tag_configure('header', foreground='#CE93D8',
+                                       font=('Consolas', 10, 'bold'))
+        self._info_text.tag_configure('accept_st', foreground='#4CAF50',
+                                       font=('Consolas', 10, 'bold'))
+        self._info_text.tag_configure('row', foreground='#E0E0E0',
+                                       font=('Consolas', 10))
 
         self.status_var = tk.StringVar(value='Listo. Agrega estados con la barra de herramientas.')
         ttk.Label(self, textvariable=self.status_var,
@@ -177,6 +205,58 @@ class NFATab(ttk.Frame):
         n_trans = len(self.canvas.transitions)
         self.status_var.set(f'NFA: {n_states} estados, {n_trans} transiciones')
         self.nfa = None
+        self._update_info_tab()
+
+    # ──────────────────────────────────────────────
+    # Formal definition tab
+    # ──────────────────────────────────────────────
+
+    def _update_info_tab(self):
+        """Populate the formal definition and transition table tab."""
+        if not self.canvas.states:
+            t = self._info_text
+            t.config(state='normal')
+            t.delete('1.0', tk.END)
+            t.insert(tk.END, '(Agrega estados al canvas para ver la definicion formal)\n', 'row')
+            t.config(state='disabled')
+            return
+        nfa = self._build_nfa_from_canvas()
+
+        t = self._info_text
+        t.config(state='normal')
+        t.delete('1.0', tk.END)
+
+        t.insert(tk.END, 'Definicion Formal\n', 'title')
+        t.insert(tk.END, '\u2500' * 36 + '\n', 'header')
+        t.insert(tk.END, nfa.get_formal_definition() + '\n\n', 'formal')
+
+        t.insert(tk.END, 'Tabla de Transiciones  \u03b4(q, a) = {Q\'}\n', 'title')
+        t.insert(tk.END, '\u2500' * 36 + '\n', 'header')
+
+        rows = nfa.get_transition_table()
+        if rows:
+            col_w = max((len(r[0]) for r in rows), default=5)
+            col_w = max(col_w, 5)
+            header_line = f"  {'Estado':<{col_w}}  {'Lee':<5}  {'->':>2}  Destinos\n"
+            t.insert(tk.END, header_line, 'header')
+            t.insert(tk.END, '  ' + '-' * (col_w + 22) + '\n', 'header')
+            for from_s, symbol, to_states in rows:
+                dest = '{' + ', '.join(sorted(to_states)) + '}'
+                has_acc = bool(to_states & nfa.accept_states)
+                line = f"  {from_s:<{col_w}}  {symbol:<5}  {'->':>2}  {dest}\n"
+                t.insert(tk.END, line, 'accept_st' if has_acc else 'row')
+        else:
+            t.insert(tk.END, '  (sin transiciones)\n', 'row')
+
+        closures = nfa.get_epsilon_closures()
+        if closures:
+            t.insert(tk.END, '\n\u03b5-clausuras\n', 'title')
+            t.insert(tk.END, '\u2500' * 36 + '\n', 'header')
+            for state, closure in sorted(closures.items()):
+                cl_str = '{' + ', '.join(sorted(closure)) + '}'
+                t.insert(tk.END, f'  \u03b5-cl({state}) = {cl_str}\n', 'formal')
+
+        t.config(state='disabled')
 
     # ──────────────────────────────────────────────
     # Build NFA from canvas
@@ -246,6 +326,7 @@ class NFATab(ttk.Frame):
             self.status_var.set(f'Ejemplo cargado: {len(nfa.states)} estados')
             self._clear_results()
             self._write_result('Ejemplo cargado en el canvas.\n', 'info')
+            self._update_info_tab()
 
     # ──────────────────────────────────────────────
     # Import / Export
@@ -283,6 +364,7 @@ class NFATab(ttk.Frame):
             self.status_var.set(f'NFA importado: {len(nfa.states)} estados')
             self._clear_results()
             self._write_result('NFA importado exitosamente desde texto.\n', 'info')
+            self._update_info_tab()
             win.destroy()
 
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)

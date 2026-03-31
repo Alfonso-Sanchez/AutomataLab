@@ -97,6 +97,27 @@ class DFA:
             labels[key].append(symbol)
         return {k: ', '.join(sorted(v)) for k, v in labels.items()}
 
+    def get_formal_definition(self):
+        """Return the formal 5-tuple string."""
+        q_set = '{' + ', '.join(self.states) + '}'
+        sigma = '{' + ', '.join(self.alphabet) + '}'
+        f_set = '{' + ', '.join(sorted(self.accept_states)) + '}'
+        q0 = self.initial_state or '?'
+        return (
+            f"M = (Q, \u03a3, \u03b4, q\u2080, F)\n"
+            f"  Q = {q_set}\n"
+            f"  \u03a3 = {sigma}\n"
+            f"  q\u2080 = {q0}\n"
+            f"  F = {f_set}"
+        )
+
+    def get_transition_table(self):
+        """Return \u03b4 as a list of rows: (from_state, symbol, to_state)."""
+        rows = []
+        for (from_s, symbol), to_s in sorted(self.transitions.items()):
+            rows.append((from_s, symbol, to_s))
+        return rows
+
     @staticmethod
     def example():
         return """# DFA: Cadenas binarias divisibles por 3

@@ -8,6 +8,7 @@ from gui.nfa_tab import NFATab
 from gui.pda_tab import PDATab
 from gui.regex_tab import RegexTab
 from gui.cfg_tab import CFGTab
+from gui.tm_tab import TMTab
 
 
 class App(tk.Tk):
@@ -42,12 +43,14 @@ class App(tk.Tk):
         self.pda_tab = PDATab(self.notebook)
         self.regex_tab = RegexTab(self.notebook)
         self.cfg_tab = CFGTab(self.notebook)
+        self.tm_tab = TMTab(self.notebook)
 
         self.notebook.add(self.dfa_tab, text="  DFA  ")
         self.notebook.add(self.nfa_tab, text="  NFA  ")
         self.notebook.add(self.pda_tab, text="  PDA  ")
         self.notebook.add(self.regex_tab, text="  Regex  ")
         self.notebook.add(self.cfg_tab, text="  CFG  ")
+        self.notebook.add(self.tm_tab, text="  Turing  ")
 
         # Keyboard shortcuts
         self.bind('<Control-b>', lambda e: self._build_current())
@@ -72,7 +75,7 @@ class App(tk.Tk):
     def _get_current_tab(self):
         idx = self.notebook.index(self.notebook.select())
         tabs = [self.dfa_tab, self.nfa_tab, self.pda_tab,
-                self.regex_tab, self.cfg_tab]
+                self.regex_tab, self.cfg_tab, self.tm_tab]
         return tabs[idx]
 
     def _build_current(self):

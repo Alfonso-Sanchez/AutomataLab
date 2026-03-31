@@ -18,7 +18,7 @@ class PDA:
         self.stack_alphabet = []
         self.transitions = {}  # (state, input, pop) -> list of (new_state, push)
         self.initial_state = None
-        self.initial_stack_symbol = '$'
+        self.initial_stack_symbol = ''  # Empty by default - user pushes via transitions
         self.accept_states = set()
         self.accept_by = 'state'  # 'state' or 'empty_stack'
 
@@ -111,9 +111,10 @@ class PDA:
         if self.initial_state is None:
             return False, [], "No hay estado inicial"
 
-        initial_stack = [self.initial_stack_symbol]
+        initial_stack = [self.initial_stack_symbol] if self.initial_stack_symbol else []
+        initial_stack_display = stack_str(initial_stack) if initial_stack else '\u2205'
         queue = [(self.initial_state, 0, list(initial_stack),
-                  [(self.initial_state, input_string, self.initial_stack_symbol)])]
+                  [(self.initial_state, input_string, initial_stack_display)])]
         visited = set()
         steps = 0
 
@@ -149,6 +150,10 @@ class PDA:
 
             return results
 
+        # Track best path (most input consumed) for rejection info
+        best_path = []
+        best_pos = -1
+
         while queue and steps < max_steps:
             steps += 1
             state, pos, stack, path = queue.pop(0)
@@ -159,6 +164,11 @@ class PDA:
             if visit_key in visited:
                 continue
             visited.add(visit_key)
+
+            # Track the path that consumed the most input
+            if pos > best_pos or (pos == best_pos and len(path) > len(best_path)):
+                best_pos = pos
+                best_path = path
 
             # Check acceptance
             if pos == len(input_string):
@@ -178,8 +188,26 @@ class PDA:
                 queue.append(result)
 
         if steps >= max_steps:
-            return False, [], f"Se alcanzo el limite de {max_steps} pasos (posible bucle infinito)"
-        return False, [], "RECHAZADA (no se encontro camino de aceptacion)"
+            return False, best_path, f"Se alcanzo el limite de {max_steps} pasos (posible bucle infinito)"
+
+        # Build rejection reason
+        if best_path:
+            last_state, last_remaining, last_stack = best_path[-1]
+            consumed = len(input_string) - len(last_remaining) if last_remaining else len(input_string)
+            if consumed < len(input_string):
+                reason = (f"RECHAZADA - Se atasco en estado '{last_state}' "
+                          f"tras leer {consumed}/{len(input_string)} simbolos. "
+                          f"Pila: {last_stack}")
+            elif self.accept_by == 'state':
+                reason = (f"RECHAZADA - Leyo toda la entrada pero termino en "
+                          f"estado '{last_state}' (no es de aceptacion). Pila: {last_stack}")
+            else:
+                reason = (f"RECHAZADA - Leyo toda la entrada pero la pila "
+                          f"no quedo vacia ({last_stack})")
+        else:
+            reason = "RECHAZADA (no se encontro camino de aceptacion)"
+
+        return False, best_path, reason
 
     def get_transition_labels(self):
         """Group transitions for display: (from, to) -> [labels].
@@ -195,15 +223,41 @@ class PDA:
                 labels[key].append(label)
         return {k: '\n'.join(v) for k, v in labels.items()}
 
+    def get_formal_definition(self):
+        """Return the formal 6-tuple string."""
+        q_set = '{' + ', '.join(self.states) + '}'
+        sigma = '{' + ', '.join(self.input_alphabet) + '}'
+        gamma = '{' + ', '.join(self.stack_alphabet) + '}'
+        f_set = '{' + ', '.join(sorted(self.accept_states)) + '}'
+        q0 = self.initial_state or '?'
+        accept_note = ('por estado final' if self.accept_by == 'state'
+                       else 'por pila vac\u00eda')
+        return (
+            f"M = (Q, \u03a3, \u0393, \u03b4, q\u2080, F)  [{accept_note}]\n"
+            f"  Q = {q_set}\n"
+            f"  \u03a3 = {sigma}\n"
+            f"  \u0393 = {gamma}\n"
+            f"  q\u2080 = {q0}\n"
+            f"  F = {f_set}"
+        )
+
+    def get_transition_table(self):
+        """Return \u03b4 as rows: (from, input, pop, to, push)."""
+        rows = []
+        for (from_s, input_sym, pop_sym), targets in sorted(self.transitions.items()):
+            for to_s, push_sym in targets:
+                rows.append((from_s, input_sym, pop_sym, to_s, push_sym))
+        return rows
+
     @staticmethod
     def example():
         return """# PDA: Acepta {0^n 1^n | n >= 1}
 # Formato: estado, entrada, pop -> estado, push
+# Pila vacia al inicio, se pushea $ via transicion
 States: q1, q2, q3, q4
 Input Alphabet: 0, 1
 Stack Alphabet: $, ×
 Initial: q1
-Initial Stack: $
 Accept: q1, q4
 Transitions:
 q1, ε, ε -> q2, $
@@ -215,11 +269,11 @@ q3, ε, $ -> q4, ε"""
     @staticmethod
     def example2():
         return """# PDA: Acepta {a^n b^n | n >= 0} (incluye cadena vacia)
+# Pila vacia al inicio, se pushea $ via transicion
 States: q0, q1, q2
 Input Alphabet: a, b
 Stack Alphabet: $, A
 Initial: q0
-Initial Stack: $
 Accept: q0, q2
 Transitions:
 q0, ε, ε -> q1, $

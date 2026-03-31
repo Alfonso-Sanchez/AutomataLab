@@ -153,20 +153,24 @@ class PDATab(ttk.Frame):
                                     state='readonly', width=14)
         accept_combo.pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(extra_bar2, text='Pila inicial:').pack(side=tk.LEFT, padx=(6, 2))
-        self._stack_symbol_var = tk.StringVar(value='Z')
-        stack_entry = ttk.Entry(extra_bar2, textvariable=self._stack_symbol_var,
-                                font=('Consolas', 10), width=3)
-        stack_entry.pack(side=tk.LEFT, padx=2)
+        # No initial stack symbol - user pushes via transitions (e.g. ε, ε → $)
+        self._stack_symbol_var = tk.StringVar(value='')
 
-        # --- Right panel: Testing ---
+        # --- Right panel: Testing + Stack + Formal Definition ---
         right_frame = ttk.Frame(self.paned)
         self.paned.add(right_frame, weight=2)
 
-        ttk.Label(right_frame, text='Probar Cadenas',
+        self._right_notebook = ttk.Notebook(right_frame)
+        self._right_notebook.pack(fill=tk.BOTH, expand=True)
+
+        # === Tab 1: Ejecucion ===
+        exec_frame = ttk.Frame(self._right_notebook)
+        self._right_notebook.add(exec_frame, text='Ejecucion')
+
+        ttk.Label(exec_frame, text='Probar Cadenas',
                   font=('Segoe UI', 10, 'bold')).pack(anchor=tk.W, padx=5, pady=(5, 2))
 
-        input_frame = ttk.Frame(right_frame)
+        input_frame = ttk.Frame(exec_frame)
         input_frame.pack(fill=tk.X, padx=5, pady=2)
 
         ttk.Label(input_frame, text='Cadena:').pack(side=tk.LEFT)
@@ -176,11 +180,34 @@ class PDATab(ttk.Frame):
 
         ttk.Button(input_frame, text='Probar',
                    command=self._on_test).pack(side=tk.LEFT, padx=2)
-        ttk.Button(input_frame, text='Traza',
-                   command=self._on_step).pack(side=tk.LEFT, padx=2)
+        ttk.Button(input_frame, text='Paso a paso',
+                   command=self._on_step_start).pack(side=tk.LEFT, padx=2)
 
+        # Step controls (hidden until step-by-step mode)
+        self._step_frame = ttk.Frame(exec_frame)
+        self._step_frame.pack(fill=tk.X, padx=5, pady=2)
+        self._btn_next = ttk.Button(self._step_frame, text='Siguiente paso',
+                                     command=self._on_step_next)
+        self._btn_next.pack(side=tk.LEFT, padx=2)
+        self._btn_run_all = ttk.Button(self._step_frame, text='Ejecutar todo',
+                                        command=self._on_test)
+        self._btn_run_all.pack(side=tk.LEFT, padx=2)
+        self._step_label = ttk.Label(self._step_frame, text='',
+                                      font=('Segoe UI', 9, 'italic'))
+        self._step_label.pack(side=tk.LEFT, padx=10)
+        self._step_frame.pack_forget()  # hidden initially
+
+        # Stack visualizer
+        stack_frame = ttk.LabelFrame(exec_frame, text='Pila')
+        stack_frame.pack(fill=tk.X, padx=5, pady=(2, 0))
+
+        self._stack_canvas = tk.Canvas(stack_frame, height=80, bg='#FAFAFA',
+                                        highlightthickness=0)
+        self._stack_canvas.pack(fill=tk.X, padx=3, pady=3)
+
+        # Results
         self.results = scrolledtext.ScrolledText(
-            right_frame, wrap=tk.WORD, font=('Consolas', 10),
+            exec_frame, wrap=tk.WORD, font=('Consolas', 10),
             bg='#1A1A2E', fg='#E0E0E0',
             insertbackground='white', state='disabled',
             padx=8, pady=5
@@ -194,6 +221,32 @@ class PDATab(ttk.Frame):
         self.results.tag_configure('error', foreground='#FF9800')
         self.results.tag_configure('info', foreground='#64B5F6')
         self.results.tag_configure('step', foreground='#CE93D8')
+
+        # === Tab 2: Definicion Formal + Tabla δ ===
+        info_frame = ttk.Frame(self._right_notebook)
+        self._right_notebook.add(info_frame, text='Definicion / Tabla \u03b4')
+
+        self._info_text = scrolledtext.ScrolledText(
+            info_frame, wrap=tk.WORD, font=('Consolas', 10),
+            bg='#1A1A2E', fg='#E0E0E0', state='disabled',
+            padx=8, pady=5
+        )
+        self._info_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self._info_text.tag_configure('title', foreground='#FFD54F',
+                                       font=('Consolas', 11, 'bold'))
+        self._info_text.tag_configure('formal', foreground='#80CBC4',
+                                       font=('Consolas', 10))
+        self._info_text.tag_configure('header', foreground='#CE93D8',
+                                       font=('Consolas', 10, 'bold'))
+        self._info_text.tag_configure('accept_st', foreground='#4CAF50',
+                                       font=('Consolas', 10, 'bold'))
+        self._info_text.tag_configure('row', foreground='#E0E0E0',
+                                       font=('Consolas', 10))
+
+        # Step-by-step state
+        self._step_gen = None
+        self._step_trace = []
+        self._step_active = False
 
         self.status_var = tk.StringVar(value='Listo. Agrega estados con la barra de herramientas.')
         ttk.Label(self, textvariable=self.status_var,
@@ -219,6 +272,51 @@ class PDATab(ttk.Frame):
         n_trans = len(self.canvas.transitions)
         self.status_var.set(f'PDA: {n_states} estados, {n_trans} transiciones')
         self.pda = None
+        self._update_info_tab()
+
+    # ──────────────────────────────────────────────
+    # Formal definition tab
+    # ──────────────────────────────────────────────
+
+    def _update_info_tab(self):
+        """Populate the formal definition and transition table tab."""
+        if not self.canvas.states:
+            t = self._info_text
+            t.config(state='normal')
+            t.delete('1.0', tk.END)
+            t.insert(tk.END, '(Agrega estados al canvas para ver la definicion formal)\n', 'row')
+            t.config(state='disabled')
+            return
+        pda = self._build_pda_from_canvas()
+
+        t = self._info_text
+        t.config(state='normal')
+        t.delete('1.0', tk.END)
+
+        t.insert(tk.END, 'Definicion Formal\n', 'title')
+        t.insert(tk.END, '\u2500' * 36 + '\n', 'header')
+        t.insert(tk.END, pda.get_formal_definition() + '\n\n', 'formal')
+
+        t.insert(tk.END, 'Tabla de Transiciones  \u03b4(q, a, pop) = {(q\', push)}\n', 'title')
+        t.insert(tk.END, '\u2500' * 36 + '\n', 'header')
+
+        rows = pda.get_transition_table()
+        if rows:
+            col_w = max((len(r[0]) for r in rows), default=5)
+            col_w = max(col_w, 5)
+            header_line = (f"  {'Estado':<{col_w}}  {'Lee':<4}  {'Pop':<4}  "
+                           f"{'->':>2}  {'Estado\'':<{col_w}}  Push\n")
+            t.insert(tk.END, header_line, 'header')
+            t.insert(tk.END, '  ' + '-' * (col_w * 2 + 26) + '\n', 'header')
+            for from_s, inp, pop, to_s, push in rows:
+                is_acc = to_s in pda.accept_states
+                line = (f"  {from_s:<{col_w}}  {inp:<4}  {pop:<4}  "
+                        f"{'->':>2}  {to_s:<{col_w}}  {push}\n")
+                t.insert(tk.END, line, 'accept_st' if is_acc else 'row')
+        else:
+            t.insert(tk.END, '  (sin transiciones)\n', 'row')
+
+        t.config(state='disabled')
 
     # ──────────────────────────────────────────────
     # Build PDA from canvas
@@ -262,7 +360,7 @@ class PDATab(ttk.Frame):
             if data['is_accept']:
                 pda.accept_states.add(name)
 
-        pda.initial_stack_symbol = self._stack_symbol_var.get().strip() or 'Z'
+        pda.initial_stack_symbol = ''  # Empty stack - user pushes via transitions
 
         if self._accept_mode_var.get() == 'Pila vacia':
             pda.accept_by = 'empty_stack'
@@ -338,7 +436,7 @@ class PDATab(ttk.Frame):
                                         pda.accept_states, labels)
             self.pda = pda
             # Sync UI controls
-            self._stack_symbol_var.set(pda.initial_stack_symbol)
+            self._stack_symbol_var.set('')
             if pda.accept_by == 'empty_stack':
                 self._accept_mode_var.set('Pila vacia')
             else:
@@ -346,6 +444,7 @@ class PDATab(ttk.Frame):
             self.status_var.set(f'Ejemplo cargado: {len(pda.states)} estados')
             self._clear_results()
             self._write_result('Ejemplo cargado en el canvas.\n', 'info')
+            self._update_info_tab()
 
     # ──────────────────────────────────────────────
     # Import / Export
@@ -380,7 +479,7 @@ class PDATab(ttk.Frame):
             self.canvas.load_from_model(pda.states, pda.initial_state,
                                         pda.accept_states, labels)
             self.pda = pda
-            self._stack_symbol_var.set(pda.initial_stack_symbol)
+            self._stack_symbol_var.set('')
             if pda.accept_by == 'empty_stack':
                 self._accept_mode_var.set('Pila vacia')
             else:
@@ -388,6 +487,7 @@ class PDATab(ttk.Frame):
             self.status_var.set(f'PDA importado: {len(pda.states)} estados')
             self._clear_results()
             self._write_result('PDA importado exitosamente desde texto.\n', 'info')
+            self._update_info_tab()
             win.destroy()
 
         ttk.Button(btn_frame, text='Importar', command=do_import).pack(side=tk.RIGHT, padx=2)
@@ -446,7 +546,51 @@ class PDATab(ttk.Frame):
     # Testing
     # ──────────────────────────────────────────────
 
+    def _draw_stack(self, stack_str):
+        """Draw the stack visually on the stack canvas."""
+        c = self._stack_canvas
+        c.delete('all')
+        c.update_idletasks()
+        w = c.winfo_width()
+        h = c.winfo_height()
+
+        if not stack_str or stack_str == '\u2205':
+            c.create_text(w // 2, h // 2, text='(pila vacia)',
+                           font=('Consolas', 10, 'italic'), fill='#999')
+            return
+
+        # Parse stack string - top is leftmost char
+        symbols = list(stack_str) if stack_str != '\u2205' else []
+        if not symbols:
+            c.create_text(w // 2, h // 2, text='(pila vacia)',
+                           font=('Consolas', 10, 'italic'), fill='#999')
+            return
+
+        cell_w = 32
+        cell_h = 32
+        total_w = len(symbols) * cell_w
+        start_x = max(10, (w - total_w) // 2)
+        y = (h - cell_h) // 2
+
+        # Label
+        c.create_text(start_x - 5, y + cell_h // 2, text='Tope\u2192',
+                       font=('Segoe UI', 7), fill='#888', anchor=tk.E)
+
+        for i, sym in enumerate(symbols):
+            x = start_x + i * cell_w
+            # Top of stack (first) is highlighted
+            fill = '#E3F2FD' if i == 0 else '#F5F5F5'
+            border = '#1565C0' if i == 0 else '#BDBDBD'
+            c.create_rectangle(x, y, x + cell_w, y + cell_h,
+                               fill=fill, outline=border, width=2 if i == 0 else 1)
+            c.create_text(x + cell_w // 2, y + cell_h // 2, text=sym,
+                           font=('Consolas', 12, 'bold' if i == 0 else 'normal'),
+                           fill='#1565C0' if i == 0 else '#333')
+
     def _on_test(self):
+        self._step_frame.pack_forget()
+        self._step_active = False
+
         if self.pda is None:
             if not self.canvas.states:
                 self.status_var.set('No hay automata definido')
@@ -468,12 +612,16 @@ class PDATab(ttk.Frame):
 
         if trace:
             self._write_result('Traza de ejecucion:\n', 'step')
-            self._write_result(f'  {"Estado":<10} {"Entrada restante":<20} {"Pila"}\n')
-            self._write_result(f'  {"-" * 50}\n')
-            for state, remaining, stack in trace:
+            self._write_result(f'  {"Paso":<6}{"Estado":<10} {"Entrada restante":<20} {"Pila"}\n')
+            self._write_result(f'  {"-" * 56}\n')
+            for i, (state, remaining, stack) in enumerate(trace):
                 rem = remaining if remaining else '\u03b5'
-                self._write_result(f'  {state:<10} {rem:<20} {stack}\n')
+                self._write_result(f'  {i:<6}{state:<10} {rem:<20} {stack}\n')
             self._write_result('\n')
+
+            # Show final stack state
+            final_stack = trace[-1][2]
+            self._draw_stack(final_stack)
 
         tag = 'accepted' if accepted else 'rejected'
         self._write_result(f'Resultado: {msg}\n', tag)
@@ -483,9 +631,87 @@ class PDATab(ttk.Frame):
             hl_type = 'accept' if accepted else 'reject'
             self.canvas.highlight_states({final_state}, hl_type)
 
-    def _on_step(self):
-        """For PDA, step-by-step shows full trace (same as test, due to BFS nature)."""
-        self._on_test()
+    def _on_step_start(self):
+        """Start step-by-step PDA simulation."""
+        if self.pda is None:
+            if not self.canvas.states:
+                self.status_var.set('No hay automata definido')
+                return
+            self.pda = self._build_pda_from_canvas()
+
+        if self.pda.initial_state is None:
+            self.status_var.set('No hay estado inicial definido')
+            return
+
+        input_str = self.test_entry.get()
+        self._clear_results()
+
+        # Run full test to get trace, then step through it
+        accepted, trace, msg = self.pda.test(input_str)
+        self._step_trace = trace
+        self._step_idx = 0
+        self._step_result = (accepted, msg)
+        self._step_active = True
+
+        display_str = input_str if input_str else '\u03b5 (cadena vacia)'
+        result_hint = 'ACEPTA' if accepted else 'RECHAZA'
+        self._write_result(f'Simulacion paso a paso: "{display_str}"\n', 'info')
+        self._write_result(f'(El PDA {result_hint} esta cadena - veamos por que)\n',
+                           'accepted' if accepted else 'rejected')
+        self._write_result(f'{"=" * 50}\n\n')
+
+        # Show step controls
+        self._btn_next.config(state='normal')
+        self._step_frame.pack(fill=tk.X, padx=5, pady=2, before=self._stack_canvas.master)
+
+        if not trace:
+            self._write_result('No se encontro ningun camino posible.\n', 'error')
+            self._write_result(f'{msg}\n', 'rejected')
+            self._btn_next.config(state='disabled')
+            self._step_active = False
+            return
+
+        # Show first step
+        self._on_step_next()
+
+    def _on_step_next(self):
+        """Show next step in PDA trace."""
+        if not self._step_active:
+            return
+
+        if not self._step_trace or self._step_idx >= len(self._step_trace):
+            accepted, msg = self._step_result
+            tag = 'accepted' if accepted else 'rejected'
+            self._write_result(f'\nResultado final: {msg}\n', tag)
+            self._step_label.config(text='Simulacion completada')
+            self._btn_next.config(state='disabled')
+            self._step_active = False
+            return
+
+        state, remaining, stack = self._step_trace[self._step_idx]
+        rem = remaining if remaining else '\u03b5'
+
+        self._write_result(f'Paso {self._step_idx}: ', 'step')
+        self._write_result(f'Estado={state}  Entrada="{rem}"  Pila={stack}\n')
+
+        # Update stack visualizer
+        self._draw_stack(stack)
+
+        # Highlight current state on canvas
+        hl_type = 'normal'
+        if self._step_idx == len(self._step_trace) - 1:
+            accepted = self._step_result[0]
+            hl_type = 'accept' if accepted else 'reject'
+        self.canvas.highlight_states({state}, hl_type)
+
+        self._step_label.config(text=f'Paso {self._step_idx + 1} / {len(self._step_trace)}')
+        self._step_idx += 1
+
+        if self._step_idx >= len(self._step_trace):
+            accepted, msg = self._step_result
+            tag = 'accepted' if accepted else 'rejected'
+            self._write_result(f'\nResultado: {msg}\n', tag)
+            self._btn_next.config(state='disabled')
 
     # ──────────────────────────────────────────────
     # Result helpers

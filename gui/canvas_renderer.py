@@ -35,6 +35,7 @@ class AutomataCanvas(ttk.Frame):
         'add_transition': 'Transicion',
         'set_initial': 'Inicial',
         'set_accept': 'Aceptacion',
+        'set_reject': 'Rechazo',
         'delete': 'Eliminar',
     }
 
@@ -47,6 +48,7 @@ class AutomataCanvas(ttk.Frame):
         # --- Data model ---
         self.states = {}       # name -> {'x': float, 'y': float, 'is_initial': bool, 'is_accept': bool}
         self.transitions = []  # [{'from': str, 'to': str, 'label': str}]
+        self.reject_states = set()  # For TM: states that are reject states
 
         # --- Interaction state ---
         self._mode = 'select'
@@ -264,9 +266,35 @@ class AutomataCanvas(ttk.Frame):
         """Set callback invoked when automaton model changes (states/transitions modified)."""
         self._on_change_callback = callback
 
+    def register_mode_button(self, mode_key, btn):
+        """Register an external button as a mode toggle (so it highlights with the active mode)."""
+        self._mode_buttons[mode_key] = btn
+
     @property
     def STATE_RADIUS(self):
         return self.BASE_STATE_RADIUS * self._zoom
+
+    # ──────────────────────────────────────────────
+    # State rename helper
+    # ──────────────────────────────────────────────
+
+    def _rename_state(self, old_name, new_name):
+        """Rename a state in-place, updating all transitions and sets."""
+        if old_name == new_name or old_name not in self.states:
+            return
+        self.states[new_name] = self.states.pop(old_name)
+        for t in self.transitions:
+            if t['from'] == old_name:
+                t['from'] = new_name
+            if t['to'] == old_name:
+                t['to'] = new_name
+        if old_name in self.reject_states:
+            self.reject_states.discard(old_name)
+            self.reject_states.add(new_name)
+        if self._selected_state == old_name:
+            self._selected_state = new_name
+        if self._hover_state == old_name:
+            self._hover_state = new_name
 
     # ──────────────────────────────────────────────
     # Smart state ID: reuse lowest available qN
@@ -404,6 +432,29 @@ class AutomataCanvas(ttk.Frame):
             def to_img(wx, wy):
                 return int((wx - min_x) * scale), int((wy - min_y) * scale)
 
+            def draw_centered(x, y, text, fnt, fill='#222222'):
+                """Draw text centered at (x, y), handling single and multiline."""
+                if '\n' in text:
+                    try:
+                        bbox = draw.multiline_textbbox((0, 0), text, font=fnt)
+                    except AttributeError:
+                        bbox = (0, 0, 60, 30)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.multiline_text((x - tw // 2, y - th // 2), text,
+                                       fill=fill, font=fnt, align='center')
+                else:
+                    try:
+                        draw.text((x, y), text, fill=fill, font=fnt, anchor='mm')
+                    except TypeError:
+                        try:
+                            bbox = draw.textbbox((0, 0), text, font=fnt)
+                        except AttributeError:
+                            bbox = (0, 0, len(text) * 8, 16)
+                        tw = bbox[2] - bbox[0]
+                        th = bbox[3] - bbox[1]
+                        draw.text((x - tw // 2, y - th // 2), text, fill=fill, font=fnt)
+
             def draw_arrowhead(x1, y1, x2, y2, color='#555555', size=None):
                 """Draw a filled arrowhead at (x2, y2) pointing from (x1,y1)."""
                 sz = size or arrow_size
@@ -446,8 +497,7 @@ class AutomataCanvas(ttk.Frame):
                     cx, cy = x1, y1 - int(r) - loop_r
                     draw.ellipse([cx - loop_r, cy - loop_r, cx + loop_r, cy + loop_r],
                                  outline='#555555', width=max(2, scale))
-                    draw.text((cx, cy - loop_r - 6 * scale), label,
-                              fill='#222222', font=font_sm, anchor='mb')
+                    draw_centered(cx, cy - loop_r - 12 * scale, label, font_sm)
                 else:
                     # Line from edge of source to edge of target
                     dx = x2 - x1
@@ -476,8 +526,7 @@ class AutomataCanvas(ttk.Frame):
                     # Label at midpoint
                     mx = (sx + ex) / 2 - ndy * 14 * scale
                     my = (sy + ey) / 2 + ndx * 14 * scale
-                    draw.text((int(mx), int(my)), label,
-                              fill='#222222', font=font_sm, anchor='mm')
+                    draw_centered(int(mx), int(my), label, font_sm)
 
             # Draw initial arrows
             for name, data in self.states.items():
@@ -494,9 +543,17 @@ class AutomataCanvas(ttk.Frame):
             for name, data in self.states.items():
                 cx, cy = to_img(data['x'], data['y'])
                 is_accept = data['is_accept']
+                is_reject = name in self.reject_states
 
-                fill_c = '#E8F5E9' if is_accept else '#E3F2FD'
-                outline_c = '#1B5E20' if is_accept else '#1565C0'
+                if is_reject:
+                    fill_c = '#FFCDD2'
+                    outline_c = '#C62828'
+                elif is_accept:
+                    fill_c = '#E8F5E9'
+                    outline_c = '#1B5E20'
+                else:
+                    fill_c = '#E3F2FD'
+                    outline_c = '#1565C0'
 
                 draw.ellipse([cx - r, cy - r, cx + r, cy + r],
                              fill=fill_c, outline=outline_c, width=3)
@@ -504,7 +561,13 @@ class AutomataCanvas(ttk.Frame):
                     ir = r - 5 * scale
                     draw.ellipse([cx - ir, cy - ir, cx + ir, cy + ir],
                                  fill=fill_c, outline=outline_c, width=3)
-                draw.text((cx, cy), name, fill=outline_c, font=font, anchor='mm')
+                draw_centered(cx, cy, name, font, fill=outline_c)
+                if is_reject:
+                    off = int(r * 0.55)
+                    draw.line([(cx - off, cy - off), (cx + off, cy + off)],
+                              fill=outline_c, width=max(2, scale))
+                    draw.line([(cx - off, cy + off), (cx + off, cy - off)],
+                              fill=outline_c, width=max(2, scale))
 
             img.save(filepath)
             from tkinter import messagebox
@@ -640,7 +703,42 @@ class AutomataCanvas(ttk.Frame):
 
         elif self._mode == 'set_accept':
             if clicked_state:
-                self.states[clicked_state]['is_accept'] = not self.states[clicked_state]['is_accept']
+                if self.automaton_type == 'TM':
+                    # TM: exclusive accept — clear all, set this one, rename to q_accept
+                    for name in list(self.states.keys()):
+                        self.states[name]['is_accept'] = False
+                    self.states[clicked_state]['is_accept'] = True
+                    if clicked_state != 'q_accept':
+                        if 'q_accept' in self.states:
+                            self._rename_state('q_accept', self._next_available_state_name())
+                        self._rename_state(clicked_state, 'q_accept')
+                else:
+                    self.states[clicked_state]['is_accept'] = not self.states[clicked_state]['is_accept']
+                self._redraw()
+                self._fire_change()
+
+        elif self._mode == 'set_reject':
+            if clicked_state:
+                if clicked_state in self.reject_states:
+                    # Un-mark reject: rename q_reject back to a generic qN
+                    self.reject_states.discard(clicked_state)
+                    if clicked_state == 'q_reject':
+                        self._rename_state('q_reject', self._next_available_state_name())
+                else:
+                    # Clear old reject state and rename it back if needed
+                    for old in list(self.reject_states):
+                        self.reject_states.discard(old)
+                        if old == 'q_reject':
+                            self._rename_state('q_reject', self._next_available_state_name())
+                    # Mark new reject and rename to q_reject
+                    # (clicked_state may have been renamed by the loop above, find it)
+                    target = clicked_state if clicked_state in self.states else next(
+                        iter(self.states), clicked_state)
+                    self.reject_states.add(target)
+                    if target != 'q_reject':
+                        if 'q_reject' in self.states:
+                            self._rename_state('q_reject', self._next_available_state_name())
+                        self._rename_state(target, 'q_reject')
                 self._redraw()
                 self._fire_change()
 
@@ -747,6 +845,9 @@ class AutomataCanvas(ttk.Frame):
         elif is_accept:
             fill = self.COLORS['accept_fill']
             border = self.COLORS['accept_border']
+        elif name in self.reject_states:
+            fill = self.COLORS['reject_fill']
+            border = self.COLORS['reject_border']
         else:
             fill = self.COLORS['state_fill']
             border = self.COLORS['state_border']
@@ -767,6 +868,16 @@ class AutomataCanvas(ttk.Frame):
         font_size = max(7, int(11 * self._zoom))
         self.canvas.create_text(x, y, text=name, font=('Consolas', font_size, 'bold'),
                                 fill=border)
+
+        # TM: draw X through reject states
+        if name in self.reject_states and name not in self._highlighted_states:
+            line_offset = r * 0.55
+            self.canvas.create_line(x - line_offset, y - line_offset,
+                                    x + line_offset, y + line_offset,
+                                    fill=self.COLORS['reject_border'], width=2)
+            self.canvas.create_line(x - line_offset, y + line_offset,
+                                    x + line_offset, y - line_offset,
+                                    fill=self.COLORS['reject_border'], width=2)
 
     def _draw_initial_arrow(self, state_name):
         data = self.states[state_name]

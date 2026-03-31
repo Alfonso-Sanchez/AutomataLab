@@ -122,6 +122,38 @@ class NFA:
                 labels[key].append(symbol)
         return {k: ', '.join(sorted(v)) for k, v in labels.items()}
 
+    def get_formal_definition(self):
+        """Return the formal 5-tuple string."""
+        q_set = '{' + ', '.join(self.states) + '}'
+        has_eps = any(s == '\u03b5' for (_, s) in self.transitions.keys())
+        sigma_base = ', '.join(self.alphabet)
+        sigma = '{' + sigma_base + (', \u03b5' if has_eps else '') + '}'
+        f_set = '{' + ', '.join(sorted(self.accept_states)) + '}'
+        q0 = self.initial_state or '?'
+        return (
+            f"M = (Q, \u03a3, \u03b4, q\u2080, F)\n"
+            f"  Q = {q_set}\n"
+            f"  \u03a3 = {sigma}\n"
+            f"  q\u2080 = {q0}\n"
+            f"  F = {f_set}"
+        )
+
+    def get_transition_table(self):
+        """Return \u03b4 as a list of rows: (from_state, symbol, frozenset_of_to_states)."""
+        rows = []
+        for (from_s, symbol), to_states in sorted(self.transitions.items()):
+            rows.append((from_s, symbol, frozenset(to_states)))
+        return rows
+
+    def get_epsilon_closures(self):
+        """Return epsilon closure for each state that has one."""
+        closures = {}
+        for state in self.states:
+            c = self.epsilon_closure({state})
+            if c != {state}:
+                closures[state] = c
+        return closures
+
     @staticmethod
     def example():
         return """# NFA: Cadenas sobre {a,b} que terminan en "ab"
