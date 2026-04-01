@@ -133,6 +133,7 @@ class TMTab(ttk.Frame):
 
         self.canvas = AutomataCanvas(left_frame, width=500, height=400)
         self.canvas.automaton_type = 'TM'
+        self.canvas._mode_buttons['set_accept'].grid_remove()
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.set_transition_dialog(self._transition_dialog)
         self.canvas.set_on_change(self._on_canvas_change)
@@ -161,10 +162,11 @@ class TMTab(ttk.Frame):
         self._accept_var = tk.StringVar(value='—')
         self._reject_var = tk.StringVar(value='—')
 
-        # "Aceptar" shortcut: activates the canvas's existing set_accept mode
-        ttk.Button(settings_bar, text='\u2713 Aceptar',
-                   command=lambda: self.canvas.set_mode('set_accept')
-                   ).pack(side=tk.LEFT, padx=(0, 2))
+        # "Aceptar" shortcut: activates set_accept mode (TM: exclusive, renames to q_accept)
+        btn_accept = ttk.Button(settings_bar, text='\u2713 Aceptar',
+                                command=lambda: self.canvas.set_mode('set_accept'))
+        btn_accept.pack(side=tk.LEFT, padx=(0, 2))
+        self.canvas.register_mode_button('set_accept', btn_accept)
 
         self._accept_label = ttk.Label(settings_bar, textvariable=self._accept_var,
                                        font=('Consolas', 9), foreground='#2E7D32', width=12)

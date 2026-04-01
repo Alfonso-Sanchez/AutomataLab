@@ -420,12 +420,23 @@ class AutomataCanvas(ttk.Frame):
             draw = ImageDraw.Draw(img)
 
             r = self.BASE_STATE_RADIUS * scale
-            arrow_size = 10 * scale
+            arrow_size = 7 * scale
 
-            try:
-                font = ImageFont.truetype("consola.ttf", 13 * scale)
-                font_sm = ImageFont.truetype("consola.ttf", 10 * scale)
-            except (OSError, IOError):
+            # Try fonts in order of preference; prefer ones that cover ⊔ (U+2294)
+            _font_candidates = [
+                "seguisym.ttf",   # Segoe UI Symbol — full Unicode math coverage
+                "arialuni.ttf",   # Arial Unicode MS
+                "consola.ttf",    # Consolas — good for code, may lack some math glyphs
+            ]
+            font = font_sm = None
+            for _fc in _font_candidates:
+                try:
+                    font = ImageFont.truetype(_fc, 13 * scale)
+                    font_sm = ImageFont.truetype(_fc, 10 * scale)
+                    break
+                except (OSError, IOError):
+                    continue
+            if font is None:
                 font = ImageFont.load_default()
                 font_sm = font
 
@@ -497,9 +508,16 @@ class AutomataCanvas(ttk.Frame):
                     cx, cy = x1, y1 - int(r) - loop_r
                     draw.ellipse([cx - loop_r, cy - loop_r, cx + loop_r, cy + loop_r],
                                  outline='#555555', width=max(2, scale))
+                    # V-shape arrowhead matching interactive canvas exactly
+                    ax = int(cx + loop_r * 0.7)
+                    ay = int(cy + loop_r * 0.7)
+                    lw = max(2, scale)
+                    draw.line([(ax - int(3 * scale), ay - int(8 * scale)), (ax, ay)],
+                              fill='#555555', width=lw)
+                    draw.line([(ax, ay), (ax + int(5 * scale), ay - int(5 * scale))],
+                              fill='#555555', width=lw)
                     draw_centered(cx, cy - loop_r - 12 * scale, label, font_sm)
                 else:
-                    # Line from edge of source to edge of target
                     dx = x2 - x1
                     dy = y2 - y1
                     dist = math.sqrt(dx * dx + dy * dy)
@@ -508,25 +526,41 @@ class AutomataCanvas(ttk.Frame):
                     ndx, ndy = dx / dist, dy / dist
 
                     has_reverse = (to_s, from_s) in pair_set
+
+                    sx = x1 + ndx * r
+                    sy = y1 + ndy * r
+                    ex = x2 - ndx * r
+                    ey = y2 - ndy * r
+
                     if has_reverse:
-                        offset = 8 * scale
-                        px, py = -ndy * offset, ndx * offset
+                        # Curved arrow: offset start/end then bend via control point
+                        off = 10 * scale
+                        sx += -ndy * off; sy += ndx * off
+                        ex += -ndy * off; ey += ndx * off
+                        ctrl_x = (sx + ex) / 2 + (-ndy * 22 * scale)
+                        ctrl_y = (sy + ey) / 2 + (ndx * 22 * scale)
+
+                        steps = 24
+                        pts = []
+                        for i in range(steps + 1):
+                            t = i / steps
+                            bx = (1-t)**2 * sx + 2*(1-t)*t * ctrl_x + t**2 * ex
+                            by = (1-t)**2 * sy + 2*(1-t)*t * ctrl_y + t**2 * ey
+                            pts.append((int(bx), int(by)))
+                        for i in range(len(pts) - 1):
+                            draw.line([pts[i], pts[i+1]], fill='#555555',
+                                      width=max(2, scale))
+                        draw_arrowhead(pts[-3][0], pts[-3][1], pts[-1][0], pts[-1][1])
+                        lx = int(ctrl_x - ndy * 6 * scale)
+                        ly = int(ctrl_y + ndx * 6 * scale)
+                        draw_centered(lx, ly, label, font_sm)
                     else:
-                        px, py = 0, 0
-
-                    sx = x1 + ndx * r + px
-                    sy = y1 + ndy * r + py
-                    ex = x2 - ndx * r + px
-                    ey = y2 - ndy * r + py
-
-                    draw.line([(int(sx), int(sy)), (int(ex), int(ey))],
-                              fill='#555555', width=max(2, scale))
-                    draw_arrowhead(sx, sy, ex, ey)
-
-                    # Label at midpoint
-                    mx = (sx + ex) / 2 - ndy * 14 * scale
-                    my = (sy + ey) / 2 + ndx * 14 * scale
-                    draw_centered(int(mx), int(my), label, font_sm)
+                        draw.line([(int(sx), int(sy)), (int(ex), int(ey))],
+                                  fill='#555555', width=max(2, scale))
+                        draw_arrowhead(sx, sy, ex, ey)
+                        mx = (sx + ex) / 2 - ndy * 14 * scale
+                        my = (sy + ey) / 2 + ndx * 14 * scale
+                        draw_centered(int(mx), int(my), label, font_sm)
 
             # Draw initial arrows
             for name, data in self.states.items():
@@ -605,7 +639,9 @@ class AutomataCanvas(ttk.Frame):
     def _transition_at(self, sx, sy):
         """Return index of transition near screen position, or None."""
         wx, wy = self._screen_to_world(sx, sy)
-        threshold = 12
+        # Scale threshold with zoom so click area stays consistent on screen
+        threshold = max(10, 14 / self._zoom)
+        r = self.BASE_STATE_RADIUS
         for i, t in enumerate(self.transitions):
             if t['from'] not in self.states or t['to'] not in self.states:
                 continue
@@ -614,12 +650,23 @@ class AutomataCanvas(ttk.Frame):
 
             if t['from'] == t['to']:
                 loop_cx = s['x']
-                loop_cy = s['y'] - self.BASE_STATE_RADIUS - 20
+                loop_cy = s['y'] - r - 20
                 dist = math.sqrt((wx - loop_cx) ** 2 + (wy - loop_cy) ** 2)
                 if abs(dist - 20) < threshold:
                     return i
             else:
-                dist = self._point_to_segment_dist(wx, wy, s['x'], s['y'], e['x'], e['y'])
+                # Use edge-to-edge segment (matches the rendered arrow)
+                dx = e['x'] - s['x']
+                dy = e['y'] - s['y']
+                seg_len = math.sqrt(dx * dx + dy * dy)
+                if seg_len == 0:
+                    continue
+                ndx, ndy = dx / seg_len, dy / seg_len
+                x1 = s['x'] + ndx * r
+                y1 = s['y'] + ndy * r
+                x2 = e['x'] - ndx * r
+                y2 = e['y'] - ndy * r
+                dist = self._point_to_segment_dist(wx, wy, x1, y1, x2, y2)
                 if dist < threshold:
                     return i
         return None
