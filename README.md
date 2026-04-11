@@ -100,6 +100,40 @@ If `~/.local/bin` is in your `PATH`, you can then launch the app with:
 automatalab
 ```
 
+#### Common Linux issues
+
+If the Linux build fails because `objdump` is missing, install `binutils` and run the build again:
+
+```bash
+# Debian / Ubuntu
+sudo apt update && sudo apt install -y binutils
+
+# Fedora / RHEL / CentOS
+sudo dnf install -y binutils
+
+# Arch / Manjaro
+sudo pacman -S binutils
+
+# openSUSE
+sudo zypper install binutils
+```
+
+If the installer fails because Python virtual environments or Tkinter are missing:
+
+```bash
+# Debian / Ubuntu
+sudo apt update && sudo apt install -y python3 python3-venv python3-tk
+
+# Fedora / RHEL / CentOS
+sudo dnf install -y python3 python3-tkinter
+
+# Arch / Manjaro
+sudo pacman -S python tk
+
+# openSUSE
+sudo zypper install python3 python3-tk
+```
+
 ## Usage
 
 ### DFA / NFA / PDA (Interactive Canvas)
