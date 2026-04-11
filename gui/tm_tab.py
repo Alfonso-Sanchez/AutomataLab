@@ -145,7 +145,7 @@ class TMTab(ttk.Frame):
         ttk.Label(extra_bar, text='Ejemplo:').pack(side=tk.LEFT, padx=(0, 2))
         self._example_var = tk.StringVar(value='Seleccionar...')
         example_combo = ttk.Combobox(extra_bar, textvariable=self._example_var,
-                                     values=['0^(2^n)', 'w#w'],
+                                     values=['Uw', 'w#w'],
                                      state='readonly', width=18)
         example_combo.pack(side=tk.LEFT, padx=2)
         example_combo.bind('<<ComboboxSelected>>', self._on_example_selected)

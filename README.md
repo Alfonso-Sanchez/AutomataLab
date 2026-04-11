@@ -17,6 +17,7 @@ An interactive desktop application for creating, visualizing, and testing formal
 | **PDA** (Pushdown Automaton) | Yes | Yes | Yes |
 | **Regular Expressions** (Formal) | NFA via Thompson's | Trace | - |
 | **CFG** (Context-Free Grammar) | Parse Tree | Derivation | - |
+| **TM** (Turing Machine) | Yes | Yes | Yes |
 
 ### Interactive Visual Editor
 - Drag-and-drop state placement
@@ -44,6 +45,15 @@ An interactive desktop application for creating, visualizing, and testing formal
 - String generation from grammar rules
 - Ambiguity checking (multiple leftmost derivations)
 - Formal definition display: `G = (V, Σ, R, S)`
+
+### Turing Machines
+- Interactive single-tape Turing machine editor
+- Transition format `read -> write, direction`
+- Tape visualization with head position highlighting
+- Step-by-step execution with configuration trace
+- Dedicated accept and reject states
+- Import/export in text format
+- Built-in examples including `Uw` and `w#w`
 
 ## Installation
 
@@ -146,6 +156,15 @@ q2, 1 -> q2
 3. Test strings to see leftmost derivations and parse trees
 4. Use **Generar** to enumerate strings in the language
 5. Use **Verificar Ambiguedad** to check if a string has multiple derivations
+
+### Turing Machines
+
+1. Use the canvas to create states and transitions
+2. Mark one halt state as **Accept** and another as **Reject**
+3. Add transitions in the form `read -> write, direction`
+4. Enter an input string and press **Ejecutar** to run the machine
+5. Use **Paso a paso** to inspect the tape, head movement, and configurations
+6. Load one of the built-in examples such as `Uw` or `w#w`
 
 ## Project Structure
 

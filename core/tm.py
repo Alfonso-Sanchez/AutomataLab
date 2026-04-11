@@ -1,13 +1,13 @@
 """Turing Machine (TM) model.
 
-Definition (7-tuple): (Q, Sigma, Gamma, delta, q0, q_accept, q_reject)
+Definition: (Q, Sigma, Gamma, delta, q0, q_accept, q_reject)
 - Q: finite set of states
 - Sigma: input alphabet (no blank symbol)
 - Gamma: tape alphabet, where blank in Gamma and Sigma subset Gamma
 - delta: Q x Gamma -> Q x Gamma x {L, R}
 - q0: start state
 - q_accept: accept state (halts immediately)
-- q_reject: reject state (halts immediately, q_accept != q_reject)
+- q_reject: optional reject state (halts immediately when present)
 
 Transition format: delta(q, a) = (q', b, D)
   Read 'a' in state q -> write 'b', move D (L/R), go to state q'.
@@ -104,8 +104,6 @@ class TuringMachine:
             errors.append("No se definio estado inicial")
         if tm.accept_state is None:
             errors.append("No se definio estado de aceptacion")
-        if tm.reject_state is None:
-            errors.append("No se definio estado de rechazo")
         if tm.accept_state and tm.reject_state and tm.accept_state == tm.reject_state:
             errors.append("q_accept y q_reject deben ser diferentes")
 
@@ -261,13 +259,14 @@ class TuringMachine:
         return f"{left} {state} {right}"
 
     def get_formal_definition(self):
-        """Return the formal 7-tuple string."""
+        """Return the formal tuple string."""
         q_set = '{' + ', '.join(self.states) + '}'
         sigma = '{' + ', '.join(self.input_alphabet) + '}'
         gamma = '{' + ', '.join(self.tape_alphabet) + '}'
+        reject_state = self.reject_state if self.reject_state is not None else '—'
         return (
             f"M = (Q, \u03a3, \u0393, \u03b4, {self.initial_state}, "
-            f"{self.accept_state}, {self.reject_state})\n"
+            f"{self.accept_state}, {reject_state})\n"
             f"  Q = {q_set}\n"
             f"  \u03a3 = {sigma}\n"
             f"  \u0393 = {gamma}"
@@ -297,66 +296,63 @@ class TuringMachine:
 
     @staticmethod
     def example():
-        return f"""# TM: Acepta {{0^(2^n) | n >= 0}}
-# Potencias de 2 en ceros
-States: q1, q2, q3, q4, q5, q_accept, q_reject
-Input Alphabet: 0
-Tape Alphabet: 0, x, {BLANK}
-Initial: q1
+        return f"""# TM: Uw
+States: q0, q1, q2, q_accept, q_reject
+Input Alphabet: a, b
+Tape Alphabet: a, {BLANK}, b
+Initial: q0
 Accept: q_accept
 Reject: q_reject
 Transitions:
-q1, {BLANK} -> q_reject, {BLANK}, R
-q1, x -> q_reject, x, R
-q1, 0 -> q2, {BLANK}, R
-q2, x -> q2, x, R
-q2, {BLANK} -> q_accept, {BLANK}, R
-q2, 0 -> q3, x, R
-q3, x -> q3, x, R
-q3, 0 -> q4, 0, R
-q3, {BLANK} -> q5, {BLANK}, L
-q4, x -> q4, x, R
-q4, 0 -> q3, x, R
-q4, {BLANK} -> q_reject, {BLANK}, R
-q5, 0 -> q5, 0, L
-q5, x -> q5, x, L
-q5, {BLANK} -> q2, {BLANK}, R"""
+q0, a -> q1, {BLANK}, R
+q0, b -> q2, {BLANK}, R
+q1, a -> q1, a, R
+q1, b -> q2, a, R
+q1, {BLANK} -> q_accept, a, R
+q2, a -> q1, b, R
+q2, b -> q2, b, R
+q2, {BLANK} -> q_accept, b, R"""
 
     @staticmethod
     def example2():
-        return f"""# TM: Acepta {{w#w | w in {{0,1}}*}}
-States: q1, q2, q3, q4, q5, q6, q7, q8, q_accept, q_reject
-Input Alphabet: 0, 1, #
-Tape Alphabet: 0, 1, #, x, {BLANK}
-Initial: q1
+        return f"""# TM: w#w
+States: q0, q1, q2, q3, q4, q5, q6, q7, q_accept
+Input Alphabet: a, b, $, X, Y
+Tape Alphabet: a, b, {BLANK}, $, #, X, Y
+Initial: q0
 Accept: q_accept
-Reject: q_reject
 Transitions:
-q1, 0 -> q2, x, R
-q1, 1 -> q3, x, R
-q1, # -> q7, #, R
-q2, 0 -> q2, 0, R
-q2, 1 -> q2, 1, R
-q2, # -> q4, #, R
-q4, x -> q4, x, R
-q4, 0 -> q6, x, L
-q4, {BLANK} -> q_reject, {BLANK}, R
-q4, 1 -> q_reject, 1, R
-q3, 0 -> q3, 0, R
-q3, 1 -> q3, 1, R
-q3, # -> q5, #, R
-q5, x -> q5, x, R
-q5, 1 -> q6, x, L
-q5, {BLANK} -> q_reject, {BLANK}, R
-q5, 0 -> q_reject, 0, R
-q6, x -> q6, x, L
-q6, # -> q8, #, L
-q6, 0 -> q6, 0, L
-q6, 1 -> q6, 1, L
-q8, 0 -> q8, 0, L
-q8, 1 -> q8, 1, L
-q8, x -> q1, x, R
-q7, x -> q7, x, R
-q7, {BLANK} -> q_accept, {BLANK}, R
-q7, 0 -> q_reject, 0, R
-q7, 1 -> q_reject, 1, R"""
+q0, a -> q0, a, R
+q0, b -> q0, b, R
+q0, {BLANK} -> q1, $, L
+q1, a -> q1, a, L
+q1, b -> q1, b, L
+q1, {BLANK} -> q2, {BLANK}, R
+q2, $ -> q7, #, L
+q2, X -> q2, X, R
+q2, Y -> q2, Y, R
+q2, a -> q3, X, R
+q2, b -> q5, Y, R
+q3, $ -> q3, $, R
+q3, a -> q3, a, R
+q3, b -> q3, b, R
+q3, {BLANK} -> q4, a, L
+q4, $ -> q4, $, L
+q4, X -> q4, X, L
+q4, Y -> q4, Y, L
+q4, a -> q4, a, L
+q4, b -> q4, b, L
+q4, {BLANK} -> q2, {BLANK}, R
+q5, $ -> q5, $, R
+q5, a -> q5, a, R
+q5, b -> q5, b, R
+q5, {BLANK} -> q6, b, L
+q6, $ -> q6, $, L
+q6, X -> q6, X, L
+q6, Y -> q6, Y, L
+q6, a -> q6, a, L
+q6, b -> q6, b, L
+q6, {BLANK} -> q2, {BLANK}, R
+q7, X -> q7, a, L
+q7, Y -> q7, b, L
+q7, {BLANK} -> q_accept, {BLANK}, R"""
