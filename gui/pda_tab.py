@@ -304,8 +304,9 @@ class PDATab(ttk.Frame):
         if rows:
             col_w = max((len(r[0]) for r in rows), default=5)
             col_w = max(col_w, 5)
+            next_state_label = "Estado'"
             header_line = (f"  {'Estado':<{col_w}}  {'Lee':<4}  {'Pop':<4}  "
-                           f"{'->':>2}  {'Estado\'':<{col_w}}  Push\n")
+                           f"{'->':>2}  {next_state_label:<{col_w}}  Push\n")
             t.insert(tk.END, header_line, 'header')
             t.insert(tk.END, '  ' + '-' * (col_w * 2 + 26) + '\n', 'header')
             for from_s, inp, pop, to_s, push in rows:
