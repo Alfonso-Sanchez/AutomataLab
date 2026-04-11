@@ -69,6 +69,37 @@ pyinstaller --onefile --windowed --name "AutomataLab" main.py
 ```
 The executable will be in `dist/AutomataLab.exe`.
 
+### Linux
+
+#### Important note
+PyInstaller does not cross-compile from Windows to Linux. To generate a Linux executable, run the build on a Linux machine or inside a Linux VM/container.
+
+#### Option 1: Build a Linux executable
+```bash
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh
+```
+
+The generated binary will be available at `dist/AutomataLab/AutomataLab`.
+
+#### Option 2: Install from source with an `.sh`
+```bash
+chmod +x scripts/install_linux.sh
+./scripts/install_linux.sh
+```
+
+This installer:
+- copies the app to `~/.local/share/automatalab`
+- creates a virtual environment
+- installs Python dependencies
+- creates the launcher `~/.local/bin/automatalab`
+- creates a desktop entry in `~/.local/share/applications`
+
+If `~/.local/bin` is in your `PATH`, you can then launch the app with:
+```bash
+automatalab
+```
+
 ## Usage
 
 ### DFA / NFA / PDA (Interactive Canvas)
