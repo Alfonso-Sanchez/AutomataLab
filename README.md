@@ -78,6 +78,7 @@ chmod +x scripts/run_linux.sh
 ```
 
 This script:
+- requires Python 3.12.13 or newer
 - creates `.venv` if it does not exist
 - installs or updates the Python dependencies inside that environment
 - launches `main.py` directly with that virtual environment
@@ -99,6 +100,8 @@ sudo pacman -S python tk
 # openSUSE
 sudo zypper install python3 python3-tk
 ```
+
+If the script fails because your Python version is older than `3.12.13`, install a newer Python and make sure `python3 --version` reports `3.12.13` or newer before running the script again.
 
 ## Usage
 

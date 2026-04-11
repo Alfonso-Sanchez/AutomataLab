@@ -502,11 +502,12 @@ class RegexTab(ttk.Frame):
         canonical = FormalRegex.tree_to_string(tree)
         has_eps = any(s == '\u03b5' for (_, s) in nfa.transitions.keys())
         total_trans = sum(len(v) for v in nfa.transitions.values())
+        epsilon_suffix = ', con ε-transiciones' if has_eps else ''
 
         self.status_var.set(
             f"NFA construido: {len(nfa.states)} estados, "
             f"{total_trans} transiciones"
-            f"{', con \u03b5-transiciones' if has_eps else ''}"
+            f"{epsilon_suffix}"
         )
 
         self._clear_results()

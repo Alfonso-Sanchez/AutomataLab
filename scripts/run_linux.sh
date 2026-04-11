@@ -6,23 +6,43 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$PROJECT_ROOT/.venv"
 PYTHON_BIN="$VENV_DIR/bin/python"
 PIP_BIN="$VENV_DIR/bin/pip"
+MIN_PYTHON_VERSION="3.12.13"
 
 show_python_help() {
     echo "ERROR: No se encontro 'python3' en el sistema." >&2
-    echo "CAUSA: este script necesita Python 3 para crear o usar el entorno virtual." >&2
+    echo "CAUSA: este script necesita Python $MIN_PYTHON_VERSION o superior para crear o usar el entorno virtual." >&2
     echo >&2
     echo "CORRECCION:" >&2
     echo "  Debian / Ubuntu" >&2
-    echo "    sudo apt update && sudo apt install -y python3 python3-venv python3-tk" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y luego python3-venv y python3-tk" >&2
     echo >&2
     echo "  Fedora / RHEL / CentOS" >&2
-    echo "    sudo dnf install -y python3 python3-tkinter" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y luego python3-tkinter" >&2
     echo >&2
     echo "  Arch / Manjaro" >&2
-    echo "    sudo pacman -S python tk" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y luego tk" >&2
     echo >&2
     echo "  openSUSE" >&2
-    echo "    sudo zypper install python3 python3-tk" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y luego python3-tk" >&2
+}
+
+show_python_version_help() {
+    local current_version="$1"
+    echo "ERROR: La version de Python es demasiado antigua: $current_version" >&2
+    echo "CAUSA: AutomataLab en Linux requiere Python $MIN_PYTHON_VERSION o superior." >&2
+    echo >&2
+    echo "CORRECCION:" >&2
+    echo "  Debian / Ubuntu" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y asegúrate de que 'python3 --version' lo use" >&2
+    echo >&2
+    echo "  Fedora / RHEL / CentOS" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y asegúrate de que 'python3 --version' lo use" >&2
+    echo >&2
+    echo "  Arch / Manjaro" >&2
+    echo "    actualiza el sistema o instala Python $MIN_PYTHON_VERSION+ y asegúrate de que 'python3' apunte a esa version" >&2
+    echo >&2
+    echo "  openSUSE" >&2
+    echo "    instala Python $MIN_PYTHON_VERSION+ y asegúrate de que 'python3 --version' lo use" >&2
 }
 
 show_venv_help() {
@@ -63,6 +83,12 @@ show_tk_help() {
 
 if ! command -v python3 >/dev/null 2>&1; then
     show_python_help
+    exit 1
+fi
+
+PYTHON_VERSION="$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:3])))")"
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info[:3] >= (3, 12, 13) else 1)"; then
+    show_python_version_help "$PYTHON_VERSION"
     exit 1
 fi
 
