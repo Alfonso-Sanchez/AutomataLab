@@ -69,39 +69,36 @@ pyinstaller --onefile --windowed --name "AutomataLab" main.py
 ```
 The executable will be in `dist/AutomataLab.exe`.
 
-### Linux
+### Debian / Ubuntu
 
 #### Run with an automatic virtualenv
 ```bash
-chmod +x scripts/run_linux.sh
-./scripts/run_linux.sh
+chmod +x scripts/run_debian.sh
+./scripts/run_debian.sh
 ```
 
 This script:
+- uses `python3.12`
 - requires Python 3.12.13 or newer
 - creates `.venv` if it does not exist
 - installs or updates the Python dependencies inside that environment
 - launches `main.py` directly with that virtual environment
 
-#### Common Linux issues
+#### Common Debian / Ubuntu issues
 
 If the script fails because Python, virtual environments or Tkinter are missing:
 
 ```bash
-# Debian / Ubuntu
-sudo apt update && sudo apt install -y python3 python3-venv python3-tk
-
-# Fedora / RHEL / CentOS
-sudo dnf install -y python3 python3-tkinter
-
-# Arch / Manjaro
-sudo pacman -S python tk
-
-# openSUSE
-sudo zypper install python3 python3-tk
+sudo apt update
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install python3.12 python3.12-venv python3.12-dev python3-tk -y
 ```
 
-If the script fails because your Python version is older than `3.12.13`, install a newer Python and make sure `python3 --version` reports `3.12.13` or newer before running the script again.
+If the script fails because your Python version is older than `3.12.13`, install a newer Python and make sure `python3.12 --version` reports `3.12.13` or newer before running the script again.
+
+This script is intended for Debian / Ubuntu style environments.
 
 ## Usage
 
