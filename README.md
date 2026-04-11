@@ -71,6 +71,10 @@ The executable will be in `dist/AutomataLab.exe`.
 
 ### Debian / Ubuntu
 
+AutomataLab is primarily designed for Windows 11. However, basic support has been added for Ubuntu 24.04. Behavior may not be fully optimized, but the main features should work correctly.
+
+The application UI is in Spanish, since it is intended for students at my university in Spain.
+
 #### Run with an automatic virtualenv
 ```bash
 chmod +x scripts/run_debian.sh

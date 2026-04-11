@@ -9,6 +9,13 @@ PIP_BIN="$VENV_DIR/bin/pip"
 MIN_PYTHON_VERSION="3.12"
 PYTHON_CMD=""
 
+show_platform_notice() {
+    echo "AUTOMATALAB esta pensado principalmente para Windows 11."
+    echo "Sin embargo, se ha anadido soporte basico para Ubuntu 24.04."
+    echo "Su funcionamiento puede no ser totalmente optimo, pero las funcionalidades principales deberian funcionar correctamente."
+    echo
+}
+
 select_python() {
     if command -v python3.12 >/dev/null 2>&1; then
         if python3.12 -c "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 12) else 1)"; then
@@ -96,6 +103,8 @@ fi
 if command -v python3.12 >/dev/null 2>&1; then
     PYTHON312_VERSION="$(python3.12 -c "import sys; print('.'.join(map(str, sys.version_info[:3])))")"
 fi
+
+show_platform_notice
 
 if ! select_python; then
     if [ -z "$PYTHON3_VERSION" ] && [ -z "$PYTHON312_VERSION" ]; then
