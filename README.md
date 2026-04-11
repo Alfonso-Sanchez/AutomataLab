@@ -79,8 +79,8 @@ chmod +x scripts/run_debian.sh
 
 This script:
 - uses `python3.12` if available
-- otherwise uses `python3` only if the default version is already `3.12.13` or newer
-- requires Python 3.12.13 or newer
+- otherwise uses `python3` only if the default version is already `3.12` or newer
+- requires Python 3.12 or newer
 - creates `.venv` if it does not exist
 - installs or updates the Python dependencies inside that environment
 - launches `main.py` directly with that virtual environment
@@ -97,11 +97,10 @@ sudo apt update
 sudo apt install python3.12 python3.12-venv python3.12-dev python3-tk -y
 ```
 
-If the script fails because your Python version is older than `3.12.13`, install a newer Python and make sure either `python3.12 --version` or the default `python3 --version` reports `3.12.13` or newer before running the script again.
+If the script fails because your Python version is older than `3.12`, install a newer Python and make sure either `python3.12 --version` or the default `python3 --version` reports `3.12` or newer before running the script again.
 
 This script is intended for Debian / Ubuntu style environments.
 It is only intended for systems where the default `python3` is already `3.12` or newer.
-If `python3` is older than `3.12.13`, the script will stop and tell you to use [run_debian.sh](/C:/Users/sanch/Documents/GitHub/LF-Creator/scripts/run_debian.sh:1).
 
 ## Usage
 

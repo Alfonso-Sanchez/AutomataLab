@@ -6,19 +6,19 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$PROJECT_ROOT/.venv"
 PYTHON_BIN="$VENV_DIR/bin/python"
 PIP_BIN="$VENV_DIR/bin/pip"
-MIN_PYTHON_VERSION="3.12.13"
+MIN_PYTHON_VERSION="3.12"
 PYTHON_CMD=""
 
 select_python() {
     if command -v python3.12 >/dev/null 2>&1; then
-        if python3.12 -c "import sys; sys.exit(0 if sys.version_info[:3] >= (3, 12, 13) else 1)"; then
+        if python3.12 -c "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 12) else 1)"; then
             PYTHON_CMD="python3.12"
             return 0
         fi
     fi
 
     if command -v python3 >/dev/null 2>&1; then
-        if python3 -c "import sys; sys.exit(0 if sys.version_info[:3] >= (3, 12, 13) else 1)"; then
+        if python3 -c "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 12) else 1)"; then
             PYTHON_CMD="python3"
             return 0
         fi
@@ -29,7 +29,7 @@ select_python() {
 
 show_python_help() {
     echo "ERROR: No se encontro una version valida de Python para ejecutar AutomataLab." >&2
-    echo "CAUSA: este script necesita Python $MIN_PYTHON_VERSION o superior." >&2
+    echo "CAUSA: este script necesita Python 3.12 o superior." >&2
     echo >&2
     echo "CORRECCION PARA DEBIAN / UBUNTU:" >&2
     echo "  sudo apt update" >&2
@@ -39,8 +39,8 @@ show_python_help() {
     echo "  sudo apt install python3.12 python3.12-venv python3.12-dev python3-tk -y" >&2
     echo >&2
     echo "Este ejecutador automatico solo vale para sistemas donde exista:" >&2
-    echo "  - python3.12 >= $MIN_PYTHON_VERSION, o" >&2
-    echo "  - python3 >= $MIN_PYTHON_VERSION por defecto" >&2
+    echo "  - python3.12 >= 3.12, o" >&2
+    echo "  - python3 >= 3.12 por defecto" >&2
 }
 
 show_python_version_help() {
@@ -53,7 +53,7 @@ show_python_version_help() {
     if [ -n "$python3_version" ]; then
         echo "python3 detectado: $python3_version" >&2
     fi
-    echo "CAUSA: AutomataLab en Debian/Ubuntu requiere Python $MIN_PYTHON_VERSION o superior." >&2
+    echo "CAUSA: AutomataLab en Debian/Ubuntu requiere Python 3.12 o superior." >&2
     echo >&2
     echo "CORRECCION PARA DEBIAN / UBUNTU:" >&2
     echo "  sudo apt update" >&2
@@ -64,8 +64,8 @@ show_python_version_help() {
     echo "  y luego verifica: python3.12 --version" >&2
     echo >&2
     echo "Este ejecutador automatico solo vale para sistemas donde exista:" >&2
-    echo "  - python3.12 >= $MIN_PYTHON_VERSION, o" >&2
-    echo "  - python3 >= $MIN_PYTHON_VERSION por defecto" >&2
+    echo "  - python3.12 >= 3.12, o" >&2
+    echo "  - python3 >= 3.12 por defecto" >&2
 }
 
 show_venv_help() {
@@ -112,7 +112,7 @@ if ! command -v "$PYTHON_CMD" >/dev/null 2>&1; then
 fi
 
 PYTHON_VERSION="$($PYTHON_CMD -c "import sys; print('.'.join(map(str, sys.version_info[:3])))")"
-if ! $PYTHON_CMD -c "import sys; sys.exit(0 if sys.version_info[:3] >= (3, 12, 13) else 1)"; then
+if ! $PYTHON_CMD -c "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 12) else 1)"; then
     show_python_version_help "$PYTHON3_VERSION" "$PYTHON312_VERSION"
     exit 1
 fi
