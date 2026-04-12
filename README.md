@@ -2,7 +2,7 @@
 
 An interactive desktop application for creating, visualizing, and testing formal language constructs. Built as a study tool for formal language theory courses.
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue)
+![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![Tkinter](https://img.shields.io/badge/GUI-Tkinter-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
