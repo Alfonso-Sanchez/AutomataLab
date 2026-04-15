@@ -1,5 +1,5 @@
 build
 dist
-AutomataLab.spec
+*.spec
 gui/__pycache__
 gui/__init__.py
